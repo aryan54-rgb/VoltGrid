@@ -1,0 +1,136 @@
+import { Suspense, lazy } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import AppShell from '@/layouts/AppShell'
+import AuthLayout from '@/layouts/AuthLayout'
+import { Skeleton } from '@/components/ui/skeleton'
+
+// public
+const Landing = lazy(() => import('@/pages/public/Landing'))
+const Login = lazy(() => import('@/pages/public/Login'))
+const Register = lazy(() => import('@/pages/public/Register'))
+
+// driver
+const DriverDashboard = lazy(() => import('@/pages/driver/Dashboard'))
+const DriverStations = lazy(() => import('@/pages/driver/Stations'))
+const DriverStationDetails = lazy(() => import('@/pages/driver/StationDetails'))
+const DriverBooking = lazy(() => import('@/pages/driver/Booking'))
+const DriverActiveSession = lazy(() => import('@/pages/driver/ActiveSession'))
+const DriverHistory = lazy(() => import('@/pages/driver/History'))
+const DriverWallet = lazy(() => import('@/pages/driver/Wallet'))
+const DriverTransactions = lazy(() => import('@/pages/driver/Transactions'))
+const DriverMarketplace = lazy(() => import('@/pages/driver/Marketplace'))
+const DriverCommunity = lazy(() => import('@/pages/driver/Community'))
+const DriverNotifications = lazy(() => import('@/pages/driver/Notifications'))
+const DriverProfile = lazy(() => import('@/pages/driver/Profile'))
+
+// fleet
+const FleetDashboard = lazy(() => import('@/pages/fleet/Dashboard'))
+const FleetVehicles = lazy(() => import('@/pages/fleet/Vehicles'))
+const FleetAnalytics = lazy(() => import('@/pages/fleet/Analytics'))
+const FleetBilling = lazy(() => import('@/pages/fleet/Billing'))
+
+// operator
+const OperatorDashboard = lazy(() => import('@/pages/operator/Dashboard'))
+const OperatorStations = lazy(() => import('@/pages/operator/Stations'))
+const OperatorChargers = lazy(() => import('@/pages/operator/Chargers'))
+const OperatorReservations = lazy(() => import('@/pages/operator/Reservations'))
+const OperatorRevenue = lazy(() => import('@/pages/operator/Revenue'))
+
+// technician
+const TechDashboard = lazy(() => import('@/pages/technician/Dashboard'))
+const TechTickets = lazy(() => import('@/pages/technician/Tickets'))
+const TechTicketDetails = lazy(() => import('@/pages/technician/TicketDetails'))
+const TechHistory = lazy(() => import('@/pages/technician/History'))
+
+// admin
+const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
+const AdminUsers = lazy(() => import('@/pages/admin/Users'))
+const AdminStations = lazy(() => import('@/pages/admin/Stations'))
+const AdminMarketplace = lazy(() => import('@/pages/admin/Marketplace'))
+const AdminReports = lazy(() => import('@/pages/admin/Reports'))
+const AdminAnalytics = lazy(() => import('@/pages/admin/Analytics'))
+const AdminSettings = lazy(() => import('@/pages/admin/Settings'))
+
+function PageFallback() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-64" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-28" />
+        ))}
+      </div>
+      <Skeleton className="h-72" />
+    </div>
+  )
+}
+
+export default function App() {
+  const location = useLocation()
+  return (
+    <Suspense fallback={<PageFallback />}>
+      <Routes location={location}>
+        {/* public */}
+        <Route path="/" element={<Landing />} />
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Route>
+
+        {/* driver */}
+        <Route element={<AppShell role="driver" />}>
+          <Route path="/driver" element={<DriverDashboard />} />
+          <Route path="/driver/stations" element={<DriverStations />} />
+          <Route path="/driver/stations/:id" element={<DriverStationDetails />} />
+          <Route path="/driver/stations/:id/book" element={<DriverBooking />} />
+          <Route path="/driver/session" element={<DriverActiveSession />} />
+          <Route path="/driver/history" element={<DriverHistory />} />
+          <Route path="/driver/wallet" element={<DriverWallet />} />
+          <Route path="/driver/transactions" element={<DriverTransactions />} />
+          <Route path="/driver/marketplace" element={<DriverMarketplace />} />
+          <Route path="/driver/community" element={<DriverCommunity />} />
+          <Route path="/driver/notifications" element={<DriverNotifications />} />
+          <Route path="/driver/profile" element={<DriverProfile />} />
+        </Route>
+
+        {/* fleet */}
+        <Route element={<AppShell role="fleet" />}>
+          <Route path="/fleet" element={<FleetDashboard />} />
+          <Route path="/fleet/vehicles" element={<FleetVehicles />} />
+          <Route path="/fleet/analytics" element={<FleetAnalytics />} />
+          <Route path="/fleet/billing" element={<FleetBilling />} />
+        </Route>
+
+        {/* operator */}
+        <Route element={<AppShell role="operator" />}>
+          <Route path="/operator" element={<OperatorDashboard />} />
+          <Route path="/operator/stations" element={<OperatorStations />} />
+          <Route path="/operator/chargers" element={<OperatorChargers />} />
+          <Route path="/operator/reservations" element={<OperatorReservations />} />
+          <Route path="/operator/revenue" element={<OperatorRevenue />} />
+        </Route>
+
+        {/* technician */}
+        <Route element={<AppShell role="technician" />}>
+          <Route path="/technician" element={<TechDashboard />} />
+          <Route path="/technician/tickets" element={<TechTickets />} />
+          <Route path="/technician/tickets/:id" element={<TechTicketDetails />} />
+          <Route path="/technician/history" element={<TechHistory />} />
+        </Route>
+
+        {/* admin */}
+        <Route element={<AppShell role="admin" />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/stations" element={<AdminStations />} />
+          <Route path="/admin/marketplace" element={<AdminMarketplace />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
+  )
+}

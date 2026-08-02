@@ -1,0 +1,12 @@
+export const products = [
+  { id: 'mp-1', name: 'Portable Type 2 Charging Cable', category: 'Cables', price: 129, rating: 4.7, reviews: 320, badge: 'Best seller', seller: 'VoltGear', stock: 42, gradient: 'from-emerald-400 to-teal-600', description: '7.5m 32A Type 2 to Type 2 cable with carry case. IP54 rated, tangle-free jacket.' },
+  { id: 'mp-2', name: 'HomeFlex 11kW Wallbox', category: 'Home charging', price: 649, rating: 4.8, reviews: 512, badge: 'Popular', seller: 'GridHome', stock: 18, gradient: 'from-blue-400 to-indigo-600', description: 'Smart 11kW home wallbox with app scheduling, load balancing and RFID.' },
+  { id: 'mp-3', name: 'CCS2 Adapter Pro', category: 'Adapters', price: 189, rating: 4.4, reviews: 141, badge: null, seller: 'VoltGear', stock: 64, gradient: 'from-orange-400 to-red-500', description: 'CCS2 to Tesla adapter, up to 250kW DC fast charging. Thermal monitoring built-in.' },
+  { id: 'mp-4', name: 'EV Tire & Trim Care Kit', category: 'Accessories', price: 39, rating: 4.2, reviews: 87, badge: null, seller: 'AutoNiche', stock: 120, gradient: 'from-violet-400 to-purple-600', description: 'Low-rolling-resistance safe tire shine, interior wipes and microfiber set.' },
+  { id: 'mp-5', name: 'VoltGrid Plus Membership', category: 'Memberships', price: 9.99, per: '/mo', rating: 4.9, reviews: 1043, badge: 'Save 12%', seller: 'VoltGrid', stock: null, gradient: 'from-emerald-500 to-green-700', description: '12% off every session on VoltGrid Network stations, priority booking and free idle grace.' },
+  { id: 'mp-6', name: 'Cable Organizer Bag', category: 'Accessories', price: 24, rating: 4.5, reviews: 210, badge: null, seller: 'VoltGear', stock: 200, gradient: 'from-slate-400 to-slate-600', description: 'Weather-resistant trunk bag with dividers for cables, adapters and gloves.' },
+  { id: 'mp-7', name: 'Solar Canopy Consultation', category: 'Services', price: 0, rating: 4.6, reviews: 33, badge: 'Free', seller: 'SunPort', stock: null, gradient: 'from-amber-400 to-yellow-600', description: 'Free site assessment for residential solar carport + storage installation.' },
+  { id: 'mp-8', name: 'Winter Charging Gloves', category: 'Accessories', price: 19, rating: 4.1, reviews: 56, badge: null, seller: 'AutoNiche', stock: 75, gradient: 'from-cyan-400 to-sky-600', description: 'Touchscreen-friendly insulated gloves with grip palms for cold-weather plug-ins.' },
+]
+
+export const categories = ['All', 'Cables', 'Home charging', 'Adapters', 'Accessories', 'Memberships', 'Services']
