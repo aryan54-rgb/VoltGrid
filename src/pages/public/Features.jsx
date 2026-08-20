@@ -66,7 +66,7 @@ export default function Modules() {
           </Badge>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Module traceability</h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            This page maps each of the nine functional modules from SRS §2.2 to the screens in this prototype
+            This page maps each of the ten functional modules from SRS §2.2 to the screens in this prototype
             that demonstrate them. Follow any link to open that screen directly — every module below has at
             least one working screen, so the whole specification can be walked end to end.
           </p>

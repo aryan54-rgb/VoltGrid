@@ -6,7 +6,7 @@
 
 ## ✨ Features
 
-- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, technicians, and administrators.
+- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, and administrators.
 - **Modern UI/UX:** Built with a design system using Tailwind CSS v4, featuring CSS-variable design tokens and a class-based dark mode.
 - **Accessible Components:** Utilizes Radix primitives (via shadcn/ui style component kit) for fully accessible, unstyled UI elements like dialogs, dropdowns, tabs, and more.
 - **Interactive Data Visualization:** Includes colorblind-safe, validated chart palettes using Recharts.
@@ -25,7 +25,7 @@
 
 ## ✨ Features
 
-- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, technicians, and administrators.
+- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, and administrators.
 - **Modern UI/UX:** Built with a design system using Tailwind CSS v4, featuring CSS-variable design tokens and a class-based dark mode.
 - **Accessible Components:** Utilizes Radix primitives (via shadcn/ui style component kit) for fully accessible, unstyled UI elements like dialogs, dropdowns, tabs, and more.
 - **Interactive Data Visualization:** Includes colorblind-safe, validated chart palettes using Recharts.
@@ -80,7 +80,6 @@ VoltGrid simulates a multi-tenant environment with specific views tailored for d
 | **EV Driver** | `/driver` | Personal Dashboard, Nearby Stations, Slot Booking, Active Charging Sessions, History, Wallet, Community |
 | **Fleet Manager** | `/fleet` | Fleet Dashboard, Vehicle Tracking, Analytics, Centralized Billing |
 | **Station Operator** | `/operator` | Operator Dashboard, Station Management, Charger Status, Revenue Tracking |
-| **Technician** | `/technician` | Maintenance Dashboard, Support Tickets, Maintenance History |
 | **Admin** | `/admin` | System Dashboard, User Management, Global Analytics, Platform Settings |
 
 *Note: The theme toggle (Dark/Light mode) is available in the top navigation bar, featuring smooth transitions and preference memory.*

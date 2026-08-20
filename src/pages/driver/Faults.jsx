@@ -138,8 +138,8 @@ export default function Faults() {
         <CardHeader>
           <CardTitle className="text-base">New fault report</CardTitle>
           <CardDescription>
-            Reporting a fault opens a ticket, sets an SLA from its severity and routes it to a
-            technician.
+            Reporting a fault opens a ticket, sets an SLA from its severity and routes it to the
+            maintenance team.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -380,8 +380,8 @@ export default function Faults() {
               </div>
               <Separator />
               <p className="text-xs text-muted-foreground">
-                Routed to the station operator for {confirmation.stationName} and queued for a
-                technician. You will get a notification when the status changes.
+                Routed to the station operator for {confirmation.stationName} and queued for
+                maintenance. You will get a notification when the status changes.
               </p>
             </div>
           )}

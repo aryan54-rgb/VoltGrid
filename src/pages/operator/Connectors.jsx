@@ -343,7 +343,7 @@ export default function Connectors() {
               <DialogHeader>
                 <DialogTitle>Fault ticket raised</DialogTitle>
                 <DialogDescription>
-                  A maintenance ticket has been created and queued for technician assignment.
+                  A maintenance ticket has been created and queued for maintenance assignment.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 rounded-xl border p-4 text-sm">

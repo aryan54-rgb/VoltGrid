@@ -8,11 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 const Landing = lazy(() => import('@/pages/public/Landing'))
 const Login = lazy(() => import('@/pages/public/Login'))
 const Register = lazy(() => import('@/pages/public/Register'))
+const ForgotPassword = lazy(() => import('@/pages/public/ForgotPassword'))
+const Modules = lazy(() => import('@/pages/public/Features'))
 
 // driver
 const DriverDashboard = lazy(() => import('@/pages/driver/Dashboard'))
 const DriverStations = lazy(() => import('@/pages/driver/Stations'))
 const DriverStationDetails = lazy(() => import('@/pages/driver/StationDetails'))
+const DriverReservations = lazy(() => import('@/pages/driver/Reservations'))
 const DriverBooking = lazy(() => import('@/pages/driver/Booking'))
 const DriverActiveSession = lazy(() => import('@/pages/driver/ActiveSession'))
 const DriverHistory = lazy(() => import('@/pages/driver/History'))
@@ -20,12 +23,16 @@ const DriverWallet = lazy(() => import('@/pages/driver/Wallet'))
 const DriverTransactions = lazy(() => import('@/pages/driver/Transactions'))
 const DriverMarketplace = lazy(() => import('@/pages/driver/Marketplace'))
 const DriverCommunity = lazy(() => import('@/pages/driver/Community'))
+const DriverReviews = lazy(() => import('@/pages/driver/Reviews'))
+const DriverFaults = lazy(() => import('@/pages/driver/Faults'))
 const DriverNotifications = lazy(() => import('@/pages/driver/Notifications'))
 const DriverProfile = lazy(() => import('@/pages/driver/Profile'))
 
 // fleet
 const FleetDashboard = lazy(() => import('@/pages/fleet/Dashboard'))
 const FleetVehicles = lazy(() => import('@/pages/fleet/Vehicles'))
+const FleetDrivers = lazy(() => import('@/pages/fleet/Drivers'))
+const FleetSchedule = lazy(() => import('@/pages/fleet/Schedule'))
 const FleetAnalytics = lazy(() => import('@/pages/fleet/Analytics'))
 const FleetBilling = lazy(() => import('@/pages/fleet/Billing'))
 
@@ -33,14 +40,10 @@ const FleetBilling = lazy(() => import('@/pages/fleet/Billing'))
 const OperatorDashboard = lazy(() => import('@/pages/operator/Dashboard'))
 const OperatorStations = lazy(() => import('@/pages/operator/Stations'))
 const OperatorChargers = lazy(() => import('@/pages/operator/Chargers'))
+const OperatorConnectors = lazy(() => import('@/pages/operator/Connectors'))
+const OperatorFaults = lazy(() => import('@/pages/operator/Faults'))
 const OperatorReservations = lazy(() => import('@/pages/operator/Reservations'))
 const OperatorRevenue = lazy(() => import('@/pages/operator/Revenue'))
-
-// technician
-const TechDashboard = lazy(() => import('@/pages/technician/Dashboard'))
-const TechTickets = lazy(() => import('@/pages/technician/Tickets'))
-const TechTicketDetails = lazy(() => import('@/pages/technician/TicketDetails'))
-const TechHistory = lazy(() => import('@/pages/technician/History'))
 
 // admin
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
@@ -75,7 +78,9 @@ export default function App() {
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
         </Route>
+        <Route path="/modules" element={<Modules />} />
 
         {/* driver */}
         <Route element={<AppShell role="driver" />}>
@@ -83,12 +88,15 @@ export default function App() {
           <Route path="/driver/stations" element={<DriverStations />} />
           <Route path="/driver/stations/:id" element={<DriverStationDetails />} />
           <Route path="/driver/stations/:id/book" element={<DriverBooking />} />
+          <Route path="/driver/reservations" element={<DriverReservations />} />
           <Route path="/driver/session" element={<DriverActiveSession />} />
           <Route path="/driver/history" element={<DriverHistory />} />
           <Route path="/driver/wallet" element={<DriverWallet />} />
           <Route path="/driver/transactions" element={<DriverTransactions />} />
           <Route path="/driver/marketplace" element={<DriverMarketplace />} />
           <Route path="/driver/community" element={<DriverCommunity />} />
+          <Route path="/driver/reviews" element={<DriverReviews />} />
+          <Route path="/driver/faults" element={<DriverFaults />} />
           <Route path="/driver/notifications" element={<DriverNotifications />} />
           <Route path="/driver/profile" element={<DriverProfile />} />
         </Route>
@@ -97,6 +105,8 @@ export default function App() {
         <Route element={<AppShell role="fleet" />}>
           <Route path="/fleet" element={<FleetDashboard />} />
           <Route path="/fleet/vehicles" element={<FleetVehicles />} />
+          <Route path="/fleet/drivers" element={<FleetDrivers />} />
+          <Route path="/fleet/schedule" element={<FleetSchedule />} />
           <Route path="/fleet/analytics" element={<FleetAnalytics />} />
           <Route path="/fleet/billing" element={<FleetBilling />} />
         </Route>
@@ -106,16 +116,10 @@ export default function App() {
           <Route path="/operator" element={<OperatorDashboard />} />
           <Route path="/operator/stations" element={<OperatorStations />} />
           <Route path="/operator/chargers" element={<OperatorChargers />} />
+          <Route path="/operator/connectors" element={<OperatorConnectors />} />
+          <Route path="/operator/faults" element={<OperatorFaults />} />
           <Route path="/operator/reservations" element={<OperatorReservations />} />
           <Route path="/operator/revenue" element={<OperatorRevenue />} />
-        </Route>
-
-        {/* technician */}
-        <Route element={<AppShell role="technician" />}>
-          <Route path="/technician" element={<TechDashboard />} />
-          <Route path="/technician/tickets" element={<TechTickets />} />
-          <Route path="/technician/tickets/:id" element={<TechTicketDetails />} />
-          <Route path="/technician/history" element={<TechHistory />} />
         </Route>
 
         {/* admin */}

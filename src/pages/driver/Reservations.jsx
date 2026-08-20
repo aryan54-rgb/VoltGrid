@@ -142,7 +142,7 @@ export default function Reservations() {
   const [modifyTarget, setModifyTarget] = React.useState(null)
   const [cancelTarget, setCancelTarget] = React.useState(null)
   const [draftDate, setDraftDate] = React.useState(BASE_DATE)
-  const [draftTime, setDraftTime] = React.useState(timeSlots[0])
+  const [draftTime, setDraftTime] = React.useState(timeSlots[0].time)
   const [notice, setNotice] = React.useState('')
 
   React.useEffect(() => {
@@ -402,8 +402,8 @@ export default function Reservations() {
                 </SelectTrigger>
                 <SelectContent>
                   {timeSlots.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t} – {addMinutes(t, SLOT_MINUTES)}
+                    <SelectItem key={t.id} value={t.time}>
+                      {t.time} – {addMinutes(t.time, SLOT_MINUTES)}
                     </SelectItem>
                   ))}
                 </SelectContent>

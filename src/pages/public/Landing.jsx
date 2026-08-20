@@ -11,7 +11,6 @@ import {
   Car,
   Truck,
   Building2,
-  Wrench,
   ShieldCheck,
   MapPin,
   CalendarClock,
@@ -112,7 +111,6 @@ const roleIcons = {
   driver: Car,
   fleet: Truck,
   operator: Building2,
-  technician: Wrench,
   admin: ShieldCheck,
 }
 
@@ -120,7 +118,6 @@ const roleBlurbs = {
   driver: 'Find stations, book a slot, run a session and pay from your wallet.',
   fleet: 'Schedule vehicle charging, watch cost per mile and settle one monthly invoice.',
   operator: 'Run your sites: connector health, reservations, pricing and revenue.',
-  technician: 'Work assigned fault tickets with full service history for every charger.',
   admin: 'Oversee the whole network — users, stations, growth and platform health.',
 }
 
@@ -230,6 +227,9 @@ function Navbar() {
             <a href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Pricing
             </a>
+            <Link to="/modules" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Modules
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-2">
@@ -485,7 +485,7 @@ export default function Landing() {
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:pb-24">
         <SectionHeading
           eyebrow="Built for every role"
-          title="One network, five ways to use it"
+          title="One network, four ways to use it"
           description="Each role gets a workspace scoped to what it needs. Open any of them and look around."
         />
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">

@@ -91,7 +91,7 @@ export default function Schedule() {
 
   /** Vehicles worth scheduling tonight: idle at the depot or running low. */
   const candidates = useMemo(
-    () => fleetVehicles.filter((v) => v.status !== 'MAINTENANCE' && (v.status === 'IDLE' || v.socPct < 40)),
+    () => fleetVehicles.filter((v) => v.status !== 'maintenance' && (v.status === 'idle' || v.soc < 40)),
     []
   )
 

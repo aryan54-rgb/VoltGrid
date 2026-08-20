@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AlertTriangle, CircleDot, Inbox, MoreHorizontal, Timer } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
@@ -23,7 +22,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import {
   Select,
@@ -52,7 +50,7 @@ const STATUS_LABEL = {
   IN_PROGRESS: 'In progress',
   RESOLVED: 'Resolved',
 }
-const TECHNICIANS = ['Alex Turner', 'Omar Haddad']
+const MAINTENANCE_CREW = ['Alex Turner', 'Omar Haddad']
 
 export default function Faults() {
   const [tickets, setTickets] = useState(ticketsData)
@@ -61,7 +59,7 @@ export default function Faults() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [assignTarget, setAssignTarget] = useState(null)
-  const [assignee, setAssignee] = useState(TECHNICIANS[0])
+  const [assignee, setAssignee] = useState(MAINTENANCE_CREW[0])
 
   const unresolved = tickets.filter((t) => t.status !== 'RESOLVED')
   const criticalCount = unresolved.filter((t) => t.priority === 'CRITICAL').length
@@ -85,7 +83,7 @@ export default function Faults() {
 
   const openAssign = (ticket) => {
     setAssignTarget(ticket)
-    setAssignee(ticket.assignedTo ?? TECHNICIANS[0])
+    setAssignee(ticket.assignedTo ?? MAINTENANCE_CREW[0])
   }
 
   const confirmAssign = () => {
@@ -234,17 +232,13 @@ export default function Faults() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openAssign(t)}>
-                            Assign technician
+                            Assign engineer
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={t.priority === 'CRITICAL'}
                             onClick={() => escalate(t.id)}
                           >
                             Escalate priority
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                            <Link to={`/technician/tickets/${t.id}`}>View in technician portal</Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -274,20 +268,20 @@ export default function Faults() {
           {assignTarget && (
             <>
               <DialogHeader>
-                <DialogTitle>Assign technician</DialogTitle>
+                <DialogTitle>Assign engineer</DialogTitle>
                 <DialogDescription>
                   {assignTarget.id} · {assignTarget.title}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <Label>Technician</Label>
+                  <Label>Maintenance engineer</Label>
                   <Select value={assignee} onValueChange={setAssignee}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {TECHNICIANS.map((t) => (
+                      {MAINTENANCE_CREW.map((t) => (
                         <SelectItem key={t} value={t}>
                           {t}
                         </SelectItem>

@@ -41,10 +41,24 @@ const MAP = {
   suspended: { variant: 'destructive', icon: PauseCircle, label: 'Suspended' },
   paid: { variant: 'success', icon: CheckCircle2, label: 'Paid' },
   overdue: { variant: 'destructive', icon: AlertTriangle, label: 'Overdue' },
+  // SRS state machines (§7.1) — connectors, reservations, tickets and fleet duty
+  reserved: { variant: 'warning', icon: Clock, label: 'Reserved' },
+  occupied: { variant: 'info', icon: Zap, label: 'Occupied' },
+  expired: { variant: 'secondary', icon: Clock, label: 'Expired' },
+  assigned: { variant: 'info', icon: Wrench, label: 'Assigned' },
+  on_duty: { variant: 'success', icon: CheckCircle2, label: 'On duty' },
+  off_duty: { variant: 'secondary', icon: PauseCircle, label: 'Off duty' },
+  on_leave: { variant: 'warning', icon: PauseCircle, label: 'On leave' },
 }
 
 export function StatusBadge({ status, label }) {
-  const cfg = MAP[status] ?? { variant: 'secondary', icon: CircleDot, label: status }
+  // SRS statuses are upper snake case (RESERVED, IN_PROGRESS); the UI vocabulary
+  // is lower kebab case. Normalise both spellings onto the same entry.
+  const key = typeof status === 'string' ? status.toLowerCase().replace(/-/g, '_') : status
+  const cfg =
+    MAP[status] ??
+    MAP[key] ??
+    MAP[key?.replace?.(/_/g, '-')] ?? { variant: 'secondary', icon: CircleDot, label: status }
   const Icon = cfg.icon
   return (
     <Badge variant={cfg.variant}>

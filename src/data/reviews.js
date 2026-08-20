@@ -1,0 +1,151 @@
+/**
+ * Community module (SRS §3) — drivers rate and review the stations they charge at.
+ * `verifiedSession` marks a review tied to a charging session the author actually
+ * completed, which is what keeps ratings trustworthy.
+ */
+
+export const reviews = [
+  {
+    id: 'RV-701',
+    stationId: 'st-01',
+    author: 'Jordan Lee',
+    rating: 5,
+    date: '2026-07-29',
+    title: 'Fastest charge in the city',
+    body: 'Pulled 250 kW almost the whole way to 80%. Bays are well lit and the lounge upstairs makes the wait painless.',
+    helpful: 24,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-702',
+    stationId: 'st-02',
+    author: 'Maya Chen',
+    rating: 4,
+    date: '2026-07-28',
+    title: 'Solid, but busy at peak',
+    body: 'Two of the six CCS bays were taken every time I stopped by after 6pm. Charge speed itself was exactly as advertised.',
+    helpful: 17,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-703',
+    stationId: 'st-03',
+    author: 'Diego Ramírez',
+    rating: 3,
+    date: '2026-07-27',
+    title: 'Great hardware, awkward access',
+    body: '350 kW is superb when you get a bay, but the depot entrance is shared with delivery vans and it gets congested.',
+    helpful: 9,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-704',
+    stationId: 'st-01',
+    author: 'Priya Nair',
+    rating: 5,
+    date: '2026-07-26',
+    title: 'Reliable every single time',
+    body: 'Ten or so sessions here and not one failed start. The app handoff to the kiosk is instant.',
+    helpful: 31,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-705',
+    stationId: 'st-04',
+    author: 'Sam Okafor',
+    rating: 4,
+    date: '2026-07-25',
+    title: 'Perfect for a slow top-up',
+    body: 'Only 22 kW so plan for a long stop, but there are ten bays and I have never seen it full.',
+    helpful: 12,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-706',
+    stationId: 'st-05',
+    author: 'Jordan Lee',
+    rating: 2,
+    date: '2026-07-24',
+    title: 'Was down when I arrived',
+    body: 'Whole site was in maintenance with no warning in the app until I was already parked. Reported it and the ticket was picked up quickly, so credit for that.',
+    helpful: 22,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-707',
+    stationId: 'st-06',
+    author: 'Nina Rossi',
+    rating: 5,
+    date: '2026-07-23',
+    title: 'Best views while you charge',
+    body: 'Quiet site, never a queue, and the CHAdeMO bay actually works which is rare these days.',
+    helpful: 15,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-708',
+    stationId: 'st-08',
+    author: 'Grace Kim',
+    rating: 4,
+    date: '2026-07-22',
+    title: 'Good stop on the way home',
+    body: 'Consistent 240 kW on an empty battery. Card reader was slow but paying from the wallet worked first time.',
+    helpful: 8,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-709',
+    stationId: 'st-02',
+    author: 'Sam Okafor',
+    rating: 5,
+    date: '2026-07-21',
+    title: 'Waitlist actually works',
+    body: 'Joined the waitlist at 40% capacity and got promoted within eleven minutes. Nice touch.',
+    helpful: 19,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-710',
+    stationId: 'st-07',
+    author: 'Maya Chen',
+    rating: 1,
+    date: '2026-07-20',
+    title: 'Offline for a second week',
+    body: 'Site has been dark since the isolation fault. The app now shows it correctly, at least, so I did not waste a trip this time.',
+    helpful: 27,
+    verifiedSession: false,
+  },
+  {
+    id: 'RV-711',
+    stationId: 'st-03',
+    author: 'Jordan Lee',
+    rating: 4,
+    date: '2026-07-19',
+    title: 'Fast when a bay is free',
+    body: 'Reserved ahead this time which made all the difference. Straight in, plugged, charging in under a minute.',
+    helpful: 14,
+    verifiedSession: true,
+  },
+  {
+    id: 'RV-712',
+    stationId: 'st-08',
+    author: 'Diego Ramírez',
+    rating: 3,
+    date: '2026-07-18',
+    title: 'Pricey for the speed',
+    body: 'Works fine but the per-kWh rate is the highest of the sites I use regularly. Invoice was accurate to the kWh though.',
+    helpful: 6,
+    verifiedSession: true,
+  },
+]
+
+/**
+ * Star distribution for a set of reviews, highest rating first.
+ * @returns {{stars: number, count: number}[]}
+ */
+export function ratingBreakdown(items = reviews) {
+  return [5, 4, 3, 2, 1].map((stars) => ({
+    stars,
+    count: items.filter((r) => r.rating === stars).length,
+  }))
+}

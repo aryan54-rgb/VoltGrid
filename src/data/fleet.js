@@ -1,16 +1,16 @@
 export const fleetVehicles = [
-  { id: 'VN-101', model: 'Ford E-Transit', driver: 'A. Brooks', soc: 84, rangeKm: 212, status: 'active', location: 'Route 12 · Downtown', odometer: 48210, health: 96, nextService: '2026-09-04' },
-  { id: 'VN-102', model: 'Ford E-Transit', driver: 'K. Silva', soc: 66, rangeKm: 168, status: 'active', location: 'Route 4 · SoMa', odometer: 51930, health: 93, nextService: '2026-08-21' },
-  { id: 'VN-104', model: 'Rivian EDV 700', driver: 'J. Malone', soc: 41, rangeKm: 130, status: 'active', location: 'Route 9 · Richmond', odometer: 30125, health: 98, nextService: '2026-10-11' },
-  { id: 'VN-107', model: 'Rivian EDV 700', driver: '—', soc: 100, rangeKm: 322, status: 'charging', location: 'Depot · Bay 2', odometer: 27840, health: 97, nextService: '2026-10-02' },
-  { id: 'VN-109', model: 'Mercedes eSprinter', driver: 'T. Nguyen', soc: 58, rangeKm: 150, status: 'active', location: 'Route 2 · Mission', odometer: 61470, health: 89, nextService: '2026-08-08' },
-  { id: 'VN-110', model: 'Mercedes eSprinter', driver: '—', soc: 34, rangeKm: 86, status: 'charging', location: 'Depot · Bay 5', odometer: 59210, health: 91, nextService: '2026-08-30' },
-  { id: 'VN-112', model: 'Ford E-Transit', driver: 'R. Adeyemi', soc: 73, rangeKm: 184, status: 'active', location: 'Route 7 · Sunset', odometer: 44890, health: 95, nextService: '2026-09-15' },
-  { id: 'VN-114', model: 'Rivian EDV 500', driver: 'M. Petrov', soc: 12, rangeKm: 38, status: 'active', location: 'Route 5 · Bayview', odometer: 38560, health: 94, nextService: '2026-09-27' },
-  { id: 'VN-115', model: 'Rivian EDV 500', driver: '—', soc: 91, rangeKm: 288, status: 'idle', location: 'Depot · Lot A', odometer: 25110, health: 99, nextService: '2026-11-05' },
-  { id: 'VN-118', model: 'BrightDrop Zevo 600', driver: '—', soc: 0, rangeKm: 0, status: 'maintenance', location: 'Service center', odometer: 66890, health: 71, nextService: 'In service', },
-  { id: 'VN-120', model: 'BrightDrop Zevo 600', driver: 'C. Dubois', soc: 47, rangeKm: 128, status: 'active', location: 'Route 1 · Marina', odometer: 41220, health: 92, nextService: '2026-09-09' },
-  { id: 'VN-121', model: 'Ford E-Transit', driver: '—', soc: 88, rangeKm: 224, status: 'idle', location: 'Depot · Lot A', odometer: 19450, health: 98, nextService: '2026-12-01' },
+  { id: 'VN-101', driverId: 'fd-01', model: 'Ford E-Transit', driver: 'A. Brooks', soc: 84, rangeKm: 212, status: 'active', location: 'Route 12 · Downtown', odometer: 48210, health: 96, nextService: '2026-09-04' },
+  { id: 'VN-102', driverId: 'fd-02', model: 'Ford E-Transit', driver: 'K. Silva', soc: 66, rangeKm: 168, status: 'active', location: 'Route 4 · SoMa', odometer: 51930, health: 93, nextService: '2026-08-21' },
+  { id: 'VN-104', driverId: 'fd-03', model: 'Rivian EDV 700', driver: 'J. Malone', soc: 41, rangeKm: 130, status: 'active', location: 'Route 9 · Richmond', odometer: 30125, health: 98, nextService: '2026-10-11' },
+  { id: 'VN-107', driverId: null, model: 'Rivian EDV 700', driver: '—', soc: 100, rangeKm: 322, status: 'charging', location: 'Depot · Bay 2', odometer: 27840, health: 97, nextService: '2026-10-02' },
+  { id: 'VN-109', driverId: 'fd-04', model: 'Mercedes eSprinter', driver: 'T. Nguyen', soc: 58, rangeKm: 150, status: 'active', location: 'Route 2 · Mission', odometer: 61470, health: 89, nextService: '2026-08-08' },
+  { id: 'VN-110', driverId: null, model: 'Mercedes eSprinter', driver: '—', soc: 34, rangeKm: 86, status: 'charging', location: 'Depot · Bay 5', odometer: 59210, health: 91, nextService: '2026-08-30' },
+  { id: 'VN-112', driverId: 'fd-05', model: 'Ford E-Transit', driver: 'R. Adeyemi', soc: 73, rangeKm: 184, status: 'active', location: 'Route 7 · Sunset', odometer: 44890, health: 95, nextService: '2026-09-15' },
+  { id: 'VN-114', driverId: 'fd-06', model: 'Rivian EDV 500', driver: 'M. Petrov', soc: 12, rangeKm: 38, status: 'active', location: 'Route 5 · Bayview', odometer: 38560, health: 94, nextService: '2026-09-27' },
+  { id: 'VN-115', driverId: null, model: 'Rivian EDV 500', driver: '—', soc: 91, rangeKm: 288, status: 'idle', location: 'Depot · Lot A', odometer: 25110, health: 99, nextService: '2026-11-05' },
+  { id: 'VN-118', driverId: null, model: 'BrightDrop Zevo 600', driver: '—', soc: 0, rangeKm: 0, status: 'maintenance', location: 'Service center', odometer: 66890, health: 71, nextService: 'In service', },
+  { id: 'VN-120', driverId: 'fd-07', model: 'BrightDrop Zevo 600', driver: 'C. Dubois', soc: 47, rangeKm: 128, status: 'active', location: 'Route 1 · Marina', odometer: 41220, health: 92, nextService: '2026-09-09' },
+  { id: 'VN-121', driverId: null, model: 'Ford E-Transit', driver: '—', soc: 88, rangeKm: 224, status: 'idle', location: 'Depot · Lot A', odometer: 19450, health: 98, nextService: '2026-12-01' },
 ]
 
 export const fleetEnergyByWeek = [
@@ -59,4 +59,46 @@ export const costBreakdown = [
   { name: 'Memberships', value: 940 },
   { name: 'Idle fees', value: 540 },
   { name: 'Other', value: 400 },
+]
+
+/**
+ * Fleet drivers (SRS §3 — Fleet Management: manage fleet vehicles and drivers).
+ * `assignedVehicle` holds a fleetVehicles id, or null when the driver has no van.
+ * status: ON_DUTY | OFF_DUTY | ON_LEAVE
+ */
+export const fleetDrivers = [
+  { id: 'fd-01', name: 'Alice Brooks', email: 'a.brooks@swiftlogistics.com', licence: 'DL-448210', assignedVehicle: 'VN-101', shift: 'Morning', status: 'ON_DUTY', sessionsThisMonth: 38, energyKwh: 1420, safetyScore: 96 },
+  { id: 'fd-02', name: 'Karim Silva', email: 'k.silva@swiftlogistics.com', licence: 'DL-517903', assignedVehicle: 'VN-102', shift: 'Morning', status: 'ON_DUTY', sessionsThisMonth: 41, energyKwh: 1585, safetyScore: 92 },
+  { id: 'fd-03', name: 'Jesse Malone', email: 'j.malone@swiftlogistics.com', licence: 'DL-301256', assignedVehicle: 'VN-104', shift: 'Evening', status: 'ON_DUTY', sessionsThisMonth: 34, energyKwh: 1288, safetyScore: 88 },
+  { id: 'fd-04', name: 'Thanh Nguyen', email: 't.nguyen@swiftlogistics.com', licence: 'DL-614702', assignedVehicle: 'VN-109', shift: 'Evening', status: 'ON_DUTY', sessionsThisMonth: 29, energyKwh: 1104, safetyScore: 94 },
+  { id: 'fd-05', name: 'Rachel Adeyemi', email: 'r.adeyemi@swiftlogistics.com', licence: 'DL-448915', assignedVehicle: 'VN-112', shift: 'Night', status: 'ON_DUTY', sessionsThisMonth: 45, energyKwh: 1712, safetyScore: 97 },
+  { id: 'fd-06', name: 'Mikhail Petrov', email: 'm.petrov@swiftlogistics.com', licence: 'DL-385604', assignedVehicle: 'VN-114', shift: 'Night', status: 'ON_DUTY', sessionsThisMonth: 31, energyKwh: 1190, safetyScore: 85 },
+  { id: 'fd-07', name: 'Camille Dubois', email: 'c.dubois@swiftlogistics.com', licence: 'DL-412208', assignedVehicle: 'VN-120', shift: 'Morning', status: 'ON_DUTY', sessionsThisMonth: 27, energyKwh: 998, safetyScore: 91 },
+  { id: 'fd-08', name: 'Owen Hartley', email: 'o.hartley@swiftlogistics.com', licence: 'DL-229471', assignedVehicle: null, shift: 'Relief', status: 'OFF_DUTY', sessionsThisMonth: 12, energyKwh: 430, safetyScore: 89 },
+  { id: 'fd-09', name: 'Bianca Rossi', email: 'b.rossi@swiftlogistics.com', licence: 'DL-706133', assignedVehicle: null, shift: 'Relief', status: 'OFF_DUTY', sessionsThisMonth: 9, energyKwh: 318, safetyScore: 93 },
+  { id: 'fd-10', name: 'Dmitri Vasquez', email: 'd.vasquez@swiftlogistics.com', licence: 'DL-560019', assignedVehicle: null, shift: 'Morning', status: 'ON_LEAVE', sessionsThisMonth: 0, energyKwh: 0, safetyScore: 90 },
+  { id: 'fd-11', name: 'Hana Yoshida', email: 'h.yoshida@swiftlogistics.com', licence: 'DL-883740', assignedVehicle: null, shift: 'Evening', status: 'OFF_DUTY', sessionsThisMonth: 18, energyKwh: 654, safetyScore: 95 },
+]
+
+/** Site power ceiling the depot must stay under while charging overnight. */
+export const depotPowerLimitKw = 300
+
+/**
+ * Overnight depot charging windows (SRS §3 — Fleet Management: bulk scheduling).
+ * Times are 24h local; a window runs inside the 20:00 → 06:00 depot window.
+ * status: SCHEDULED | CHARGING | COMPLETED | CANCELLED
+ */
+export const chargingSchedule = [
+  { id: 'SCH-401', vehicleId: 'VN-107', connectorLabel: 'A1', start: '20:00', end: '22:00', targetSocPct: 90, status: 'COMPLETED', night: '2026-07-30' },
+  { id: 'SCH-402', vehicleId: 'VN-110', connectorLabel: 'A2', start: '20:30', end: '23:00', targetSocPct: 90, status: 'COMPLETED', night: '2026-07-30' },
+  { id: 'SCH-403', vehicleId: 'VN-115', connectorLabel: 'A3', start: '21:15', end: '23:15', targetSocPct: 80, status: 'CHARGING', night: '2026-07-30' },
+  { id: 'SCH-404', vehicleId: 'VN-121', connectorLabel: 'A4', start: '22:00', end: '00:00', targetSocPct: 90, status: 'SCHEDULED', night: '2026-07-30' },
+  { id: 'SCH-405', vehicleId: 'VN-114', connectorLabel: 'A1', start: '23:00', end: '01:30', targetSocPct: 100, status: 'SCHEDULED', night: '2026-07-30' },
+  { id: 'SCH-406', vehicleId: 'VN-102', connectorLabel: 'A2', start: '00:00', end: '02:00', targetSocPct: 90, status: 'SCHEDULED', night: '2026-07-30' },
+  { id: 'SCH-407', vehicleId: 'VN-118', connectorLabel: 'A3', start: '01:00', end: '03:00', targetSocPct: 80, status: 'CANCELLED', night: '2026-07-30' },
+  { id: 'SCH-411', vehicleId: 'VN-101', connectorLabel: 'A1', start: '20:00', end: '22:00', targetSocPct: 90, status: 'SCHEDULED', night: '2026-07-31' },
+  { id: 'SCH-412', vehicleId: 'VN-104', connectorLabel: 'A2', start: '20:45', end: '23:00', targetSocPct: 90, status: 'SCHEDULED', night: '2026-07-31' },
+  { id: 'SCH-413', vehicleId: 'VN-109', connectorLabel: 'A3', start: '21:30', end: '23:30', targetSocPct: 80, status: 'SCHEDULED', night: '2026-07-31' },
+  { id: 'SCH-414', vehicleId: 'VN-120', connectorLabel: 'A4', start: '22:15', end: '00:15', targetSocPct: 90, status: 'SCHEDULED', night: '2026-07-31' },
+  { id: 'SCH-415', vehicleId: 'VN-112', connectorLabel: 'A1', start: '23:30', end: '01:30', targetSocPct: 100, status: 'SCHEDULED', night: '2026-07-31' },
 ]

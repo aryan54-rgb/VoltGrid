@@ -194,3 +194,43 @@ export const timeSlots = [
   { id: 'ts-11', time: '02:00 PM', available: true },
   { id: 'ts-12', time: '02:30 PM', available: true },
 ]
+
+/**
+ * Connector entity (SRS §7.1) — the individual charging bay/port that is
+ * reserved, occupied and billed. Derived from each station's declared connector
+ * groups so bay counts always agree with the station cards.
+ *
+ * status: AVAILABLE | RESERVED | OCCUPIED | FAULTED
+ */
+export const connectors = stations.flatMap((s, si) =>
+  s.connectors.flatMap((group, gi) =>
+    Array.from({ length: group.total }, (_, i) => {
+      const n = i + 1
+      const label = `${['A', 'B', 'C'][gi]}${n}`
+      // The first `available` bays of each group are free; the rest are in use,
+      // with a deterministic slice reserved or faulted so every state is present.
+      let status
+      if (s.status === 'offline' || s.status === 'maintenance') status = 'FAULTED'
+      else if (i < group.available) status = (si + i) % 4 === 3 ? 'RESERVED' : 'AVAILABLE'
+      else status = (si + i) % 5 === 4 ? 'FAULTED' : 'OCCUPIED'
+
+      return {
+        id: `${s.id}-c${gi + 1}${n}`,
+        stationId: s.id,
+        stationName: s.name,
+        label,
+        type: group.type,
+        powerKw: group.power,
+        status,
+        energyTodayKwh: Math.round(((si * 7 + i * 13) % 40) * 8.5),
+        uptimePct: s.status === 'offline' ? 62.4 : 95 + ((si + i) % 5),
+        lastServiced: `2026-0${(si % 6) + 1}-1${(i % 3) + 1}`,
+      }
+    })
+  )
+)
+
+/** Every connector belonging to one station (SRS §7.1 Station → set of connectors). */
+export function connectorsFor(stationId) {
+  return connectors.filter((c) => c.stationId === stationId)
+}
