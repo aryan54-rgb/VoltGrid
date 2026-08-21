@@ -1,123 +1,215 @@
+<div align="center">
+
 # ⚡ VoltGrid
 
-![VoltGrid Banner](https://via.placeholder.com/1200x300?text=VoltGrid+-+EV+Charging+Platform)
+**An EV charging platform with four role-based workspaces, built on React 19 and Supabase.**
 
-**VoltGrid** is a comprehensive, frontend-only EV (Electric Vehicle) charging platform demonstration. It serves as a production-ready SaaS dashboard featuring role-based workspaces, built entirely with modern web technologies and mock data (no backend, no auth, no database required for local development).
+[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20RLS-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#-license)
 
-## ✨ Features
+</div>
 
-- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, and administrators.
-- **Modern UI/UX:** Built with a design system using Tailwind CSS v4, featuring CSS-variable design tokens and a class-based dark mode.
-- **Accessible Components:** Utilizes Radix primitives (via shadcn/ui style component kit) for fully accessible, unstyled UI elements like dialogs, dropdowns, tabs, and more.
-- **Interactive Data Visualization:** Includes colorblind-safe, validated chart palettes using Recharts.
-- **Smooth Animations:** Subtle entrance and hover motions powered by Framer Motion.
-- **Fast & Responsive:** Lazy-loaded routes with React Router ensuring blazing fast performance on any device.
+---
 
-## 🛠 Tech Stack
+## What this is
 
-- **Framework:** [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-# ⚡ VoltGrid
+VoltGrid is a working prototype of an EV charging network: drivers find and book chargers,
+station operators approve those bookings and run their sites, fleet managers schedule depot
+charging, and admins oversee the estate.
 
-![VoltGrid Banner](https://via.placeholder.com/1200x300?text=VoltGrid+-+EV+Charging+Platform)
+It is a **full-stack application**, not a UI mockup. Every screen reads and writes a real
+Postgres database through Supabase, behind real authentication and row-level security. The
+files in `src/data/` are fixtures for the seed generator — the running app does not read them.
 
-**VoltGrid** is a comprehensive, frontend-only EV (Electric Vehicle) charging platform demonstration. It serves as a production-ready SaaS dashboard featuring role-based workspaces, built entirely with modern web technologies and mock data (no backend, no auth, no database required for local development).
+> **Built for:** SEML Assignment 2. Each functional module in the SRS maps to specific screens,
+> and the `/modules` page in the app shows that traceability map.
 
-## ✨ Features
+---
 
-- **Role-Based Access Control:** Distinct workspaces tailored for public users, drivers, fleet managers, station operators, and administrators.
-- **Modern UI/UX:** Built with a design system using Tailwind CSS v4, featuring CSS-variable design tokens and a class-based dark mode.
-- **Accessible Components:** Utilizes Radix primitives (via shadcn/ui style component kit) for fully accessible, unstyled UI elements like dialogs, dropdowns, tabs, and more.
-- **Interactive Data Visualization:** Includes colorblind-safe, validated chart palettes using Recharts.
-- **Smooth Animations:** Subtle entrance and hover motions powered by Framer Motion.
-- **Fast & Responsive:** Lazy-loaded routes with React Router ensuring blazing fast performance on any device.
+## ✨ Highlights
 
-## 🛠 Tech Stack
+| | |
+| :-- | :-- |
+| 🔐 **Real auth, real authorization** | Email/password and OAuth sign-in. Roles are enforced by Postgres RLS policies, not by hiding buttons — a driver cannot read another driver's reservations even with a crafted request. |
+| 📍 **Live distance calculation** | Operators enter a station's true latitude/longitude; the driver app reads the browser's position and measures each station with the haversine formula, then sorts nearest-first. |
+| ✅ **Operator booking approval** | A driver's booking lands as `PENDING` and holds the slot. A database trigger broadcasts it to operators, who approve or decline it from the Reservations board. |
+| 🎨 **Design-token theming** | Tailwind v4 CSS variables with light/dark parity, colorblind-safe chart palettes, and status never signalled by colour alone. |
+| ♿ **Accessible by construction** | Radix primitives for dialogs, dropdowns, selects and tabs — keyboard and screen-reader behaviour comes from the library, not from guesswork. |
+| ⚡ **Lazy-loaded routes** | Every page is a separate chunk, so a driver never downloads the admin console. |
 
-- **Framework:** [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-- **Components:** shadcn/ui-style component kit (Radix primitives)
-- **Routing:** [React Router 7](https://reactrouter.com/)
-- **Charts:** [Recharts](https://recharts.org/)
-- **Animations:** [Framer Motion](https://www.framer.com/motion/)
-- **Icons:** [Lucide React](https://lucide.dev/)
+---
 
-## 🚀 Quick Start
+## 🛠 Tech stack
 
-To get the project running locally on your machine, follow these steps:
+**Frontend** — [React 19](https://react.dev/) · [Vite](https://vite.dev/) · [React Router 7](https://reactrouter.com/) · [Tailwind CSS v4](https://tailwindcss.com/) · [Radix UI](https://www.radix-ui.com/) · [Recharts](https://recharts.org/) · [Framer Motion](https://www.framer.com/motion/) · [Lucide](https://lucide.dev/)
+
+**Backend** — [Supabase](https://supabase.com/) (Postgres, Auth, Row Level Security)
+
+**Tooling** — [oxlint](https://oxc.rs/)
+
+---
+
+## 🚀 Getting started
 
 ### Prerequisites
-- **Node.js**: Ensure you have Node.js v18+ installed.
-- **npm / pnpm / yarn**: The project uses `npm` by default, but any modern package manager will work.
 
-### Installation
+- **Node.js 20+**
+- A **Supabase project** (the free tier is plenty)
 
-1. **Clone the repository** (if you haven't already):
-   ```bash
-   git clone <repository-url>
-   cd VoltGrid
-   ```
+### 1. Install
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/aryan54-rgb/VoltGrid.git
+cd VoltGrid
+npm install
+```
 
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+### 2. Connect your Supabase project
 
-4. Open your browser and navigate to `http://localhost:5173`.
+Create a `.env.local` in the project root:
 
-## 👥 Workspaces & Roles
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
 
-VoltGrid simulates a multi-tenant environment with specific views tailored for different user roles. You can seamlessly switch between these workspaces using the user card located at the bottom of the sidebar. 
+Both values are in your Supabase dashboard under **Project Settings → API**. The anon key is
+safe to ship to the browser — RLS is what protects the data, not the key.
 
-| Role | Route | Key Features & Pages |
+### 3. Run the migrations
+
+Open the Supabase dashboard → **SQL Editor**, and paste each file from `supabase/migrations/`
+**in filename order**. They are ordered by timestamp and are idempotent, so re-running one is
+safe. See [`SUPABASE_HANDOVER.md`](SUPABASE_HANDOVER.md) for what each migration does.
+
+### 4. Start
+
+```bash
+npm run dev
+```
+
+Open <http://localhost:5173>, register an account, and pick a role.
+
+> **Note:** the driver's nearby-stations screen needs the browser Geolocation API, which only
+> works in a secure context — `localhost` qualifies, a plain-HTTP LAN address does not.
+
+### Scripts
+
+| Command | What it does |
+| :--- | :--- |
+| `npm run dev` | Vite dev server with HMR |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | oxlint over the source tree |
+| `npm run seed:sql` | Regenerate the demo-data seed migration from `src/data/*.js` |
+
+---
+
+## 👥 Workspaces
+
+Your role is chosen at registration and decides which portal opens. Route guards and RLS
+policies both enforce it — changing the URL does not get you into another workspace.
+
+| Role | Route | Screens |
 | :--- | :--- | :--- |
-| **Public** | `/` | Landing page, Login, Registration |
-| **EV Driver** | `/driver` | Personal Dashboard, Nearby Stations, Slot Booking, Active Charging Sessions, History, Wallet, Community |
-| **Fleet Manager** | `/fleet` | Fleet Dashboard, Vehicle Tracking, Analytics, Centralized Billing |
-| **Station Operator** | `/operator` | Operator Dashboard, Station Management, Charger Status, Revenue Tracking |
-| **Admin** | `/admin` | System Dashboard, User Management, Global Analytics, Platform Settings |
+| **Public** | `/` | Landing · SRS module map (`/modules`) · Login · Registration · Password reset |
+| **EV Driver** | `/driver` | Dashboard · Charging Stations · Reservations · Active Session · History · Wallet · Transactions · Report a Fault · Marketplace · Community · Reviews · Notifications · Profile |
+| **Fleet Manager** | `/fleet` | Dashboard · Vehicles · Drivers · Charging Schedule · Analytics · Billing |
+| **Station Operator** | `/operator` | Dashboard · Stations · Chargers · Connectors · Reservations · Fault Queue · Revenue |
+| **Admin** | `/admin` | Dashboard · Users · Stations · Marketplace · Reports · Analytics · Settings |
 
-*Note: The theme toggle (Dark/Light mode) is available in the top navigation bar, featuring smooth transitions and preference memory.*
+---
 
-## 🎨 Design Philosophy & Customization
+## 🔄 How a booking flows
 
-VoltGrid is built with a focus on modern aesthetics and premium user experience:
-- **Glassmorphism Elements**: Used sparingly for overlays, sidebars, and dropdowns.
-- **Micro-interactions**: Hover effects, smooth state transitions, and staggered list animations powered by Framer Motion.
-- **Theming**: Powered by Tailwind CSS v4 variables. To customize colors, simply edit the CSS tokens in `index.css`.
-
-## 📂 Project Structure
+The one cross-role workflow worth reading end to end:
 
 ```
-src/
-├── components/
-│   ├── ui/         # Base UI components (accessible shadcn-style primitives)
-│   └── shared/     # Reusable business components (StatCards, Recharts, Badges, etc.)
-├── context/        # React context providers (e.g., ThemeProvider)
-├── data/           # Mock JSON data driving the application states
-├── layouts/        # Page layouts (AppShell with sidebar/topbar, AuthLayout)
-├── lib/            # Utility functions (clsx, tailwind-merge) and navigation configurations
-└── pages/          # Route components organized cleanly by user role
+Driver                          Database                        Operator
+──────                          ────────                        ────────
+Picks a station,                                                
+connector and slot
+      │
+      └─── createReservation ──▶ status = PENDING
+                                 (slot is held immediately)
+                                        │
+                                 AFTER INSERT trigger
+                                        │
+                                 notifications broadcast ──────▶ 🔔 bell in the header
+                                   roles = ['operator']                │
+                                                                       │
+                                                          Approves on /operator/reservations
+                                                                       │
+      🔔 sees PENDING ◀───────── status = RESERVED ◀───────────────────┘
+         become RESERVED
 ```
 
-*Everything you see in the dashboard — active sessions, revenue charts, support tickets, and notifications — is populated dynamically using mock data from the `src/data/` directory, making it perfect for demonstrations.*
+The notification is written by a `SECURITY DEFINER` trigger rather than by the client, because
+`notifications` is deliberately not client-writable — otherwise any signed-in user could
+broadcast arbitrary text to every operator and admin. Being in the same transaction as the
+booking also means a reservation can never exist without its notification.
 
-## 🤝 Partner Contributions
+---
 
-As a partner of this project, your contributions are highly valued! To propose changes:
+## 📂 Project structure
 
-1. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-2. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-3. Push to the branch (`git push origin feature/AmazingFeature`)
-4. Open a Pull Request
+```
+VoltGrid/
+├── src/
+│   ├── components/
+│   │   ├── ui/          # Radix-based primitives (button, dialog, select, table…)
+│   │   ├── shared/      # Cross-page pieces (StatCard, StatusBadge, MapPlaceholder…)
+│   │   └── auth/        # Route guards
+│   ├── context/         # Auth and theme providers
+│   ├── hooks/           # useQuery (async reads), useGeolocation (browser position)
+│   ├── layouts/         # AppShell (sidebar + topbar), AuthLayout
+│   ├── lib/
+│   │   ├── api/         # One module per domain — the only place Supabase is called
+│   │   ├── geo.js       # Haversine distance, map projection, coordinate parsing
+│   │   ├── nav.js       # Per-role navigation and the SRS traceability map
+│   │   └── supabase.ts  # Client singleton
+│   ├── pages/           # Route components, grouped by role
+│   └── data/            # Fixtures for the seed generator (NOT read at runtime)
+├── supabase/migrations/ # Schema, RLS policies, functions and triggers
+├── scripts/             # Seed generation and database checks
+└── docs/                # Page-by-page guide
+```
 
-We review PRs promptly and encourage adding detailed descriptions for new components.
+### Where the interesting logic lives
+
+| Concern | File |
+| :--- | :--- |
+| Distance, sorting, map projection | `src/lib/geo.js` |
+| Browser position, permission states | `src/hooks/use-geolocation.js` |
+| Booking creation and approval | `src/lib/api/reservations.js` |
+| Role enforcement | `supabase/migrations/20260821150000_phase2_schema.sql` |
+| Station coordinates | `supabase/migrations/20260821200000_station_coordinates.sql` |
+| Operator approval trigger | `supabase/migrations/20260821220000_booking_approval.sql` |
+
+---
+
+## 📚 Further reading
+
+| Document | Contents |
+| :--- | :--- |
+| [`SUPABASE_HANDOVER.md`](SUPABASE_HANDOVER.md) | Every table, policy and function, and why each one is shaped that way |
+| [`CONTINUE_HERE.md`](CONTINUE_HERE.md) | Current state and the next steps |
+| [`docs/PAGES_GUIDE.md`](docs/PAGES_GUIDE.md) | What each screen does, page by page |
+
+---
+
+## 🤝 Contributing
+
+1. Branch from `main` — `git checkout -b feature/your-feature`
+2. Keep `npm run lint` and `npm run build` clean
+3. Schema changes go in a **new** timestamped migration; never edit one that has already run
+4. Open a pull request describing what changed and why
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - feel free to fork and adapt it for your own EV SaaS ideas!
+MIT — fork it and build your own EV platform.
