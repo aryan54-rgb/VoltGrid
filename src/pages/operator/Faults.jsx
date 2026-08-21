@@ -31,8 +31,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatDateTime, timeAgo } from '@/lib/utils'
-import { tickets as ticketsData } from '@/data/tickets'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { assignTicket, escalateTicket, fetchTickets } from '@/lib/api/tickets'
 
+/**
+ * SLA breaches are measured against the demo dataset's "now", not the wall
+ * clock — the seeded tickets are dated July 2026 and would otherwise all read
+ * as breached. Swap for `new Date()` once tickets are being filed live.
+ */
 const SLA_NOW = new Date('2026-07-31T00:00:00')
 
 const SOURCE_LABEL = {
@@ -53,7 +60,10 @@ const STATUS_LABEL = {
 const MAINTENANCE_CREW = ['Alex Turner', 'Omar Haddad']
 
 export default function Faults() {
-  const [tickets, setTickets] = useState(ticketsData)
+  const queue = useQuery(fetchTickets, [])
+  const tickets = useMemo(() => queue.data ?? [], [queue.data])
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -86,27 +96,40 @@ export default function Faults() {
     setAssignee(ticket.assignedTo ?? MAINTENANCE_CREW[0])
   }
 
-  const confirmAssign = () => {
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === assignTarget.id ? { ...t, assignedTo: assignee, status: 'ASSIGNED' } : t
-      )
-    )
+  // Both actions also append a ticket_events row, so the activity trail on the
+  // ticket explains who changed what.
+  const confirmAssign = async () => {
+    const id = assignTarget.id
     setAssignTarget(null)
+    setActionError(null)
+    try {
+      await assignTicket(id, assignee)
+      queue.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  const escalate = (id) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t
-        const next = Math.min(PRIORITY_LADDER.indexOf(t.priority) + 1, PRIORITY_LADDER.length - 1)
-        return { ...t, priority: PRIORITY_LADDER[next] }
-      })
-    )
+  const escalate = async (id) => {
+    const ticket = tickets.find((t) => t.id === id)
+    if (!ticket) return
+    setActionError(null)
+    try {
+      await escalateTicket(id, ticket.priority)
+      queue.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (queue.loading && !queue.data) return <LoadingRows rows={8} />
+  if (queue.error) {
+    return <ErrorState error={queue.error} onRetry={queue.refetch} title="Could not load the fault queue" />
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Fault queue"
         description="Reported faults across your network, triaged and assigned against an SLA."

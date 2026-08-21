@@ -25,8 +25,13 @@ import {
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
-import { stations, timeSlots } from '@/data/stations'
-import { wallet } from '@/data/wallet'
+import { EmptyState } from '@/components/shared/empty-state'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries, useQuery } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { fetchStation, fetchConnectorsFor } from '@/lib/api/stations'
+import { fetchSlotAvailability, createReservation } from '@/lib/api/reservations'
+import { fetchWallet } from '@/lib/api/wallet'
 
 const BASE_DATE = '2026-07-31'
 const SLOT_MINUTES = 30
@@ -59,7 +64,7 @@ function nextDates(baseIso, count) {
 export default function Booking() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const station = stations.find((s) => s.id === id) ?? stations[0]
+  const { user } = useAuth()
   const dates = React.useMemo(() => nextDates(BASE_DATE, 5), [])
 
   const [step, setStep] = React.useState(1)
@@ -68,22 +73,83 @@ export default function Booking() {
   const [slotId, setSlotId] = React.useState(null)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [bookingId, setBookingId] = React.useState(null)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [submitError, setSubmitError] = React.useState(null)
 
-  const connector = station.connectors.find((c) => c.type === connectorType) ?? null
+  const base = useQueries(
+    {
+      station: () => fetchStation(id),
+      bays: () => fetchConnectorsFor(id),
+      wallet: fetchWallet,
+    },
+    [id]
+  )
+  const station = base.data?.station ?? null
+  const bays = base.data?.bays ?? []
+  const wallet = base.data?.wallet
+
+  // Availability is per station *and* per day, so it reloads when the date
+  // changes rather than being read once at mount.
+  const slots = useQuery(() => fetchSlotAvailability(id, date), [id, date])
+  const timeSlots = React.useMemo(() => slots.data ?? [], [slots.data])
+
+  const connector = station?.connectors.find((c) => c.type === connectorType) ?? null
   const slot = timeSlots.find((t) => t.id === slotId) ?? null
   const freeSlots = timeSlots.filter((t) => t.available).length
 
   const estKwh = connector
     ? Math.round(Math.min(connector.power * (SLOT_MINUTES / 60) * 0.8, 60) * 10) / 10
     : 0
-  const estCost = Math.round(estKwh * station.pricePerKwh * 100) / 100
+  const estCost = station ? Math.round(estKwh * station.pricePerKwh * 100) / 100 : 0
 
   const canContinue = step === 1 ? Boolean(connector) : step === 2 ? Boolean(slot) : true
 
-  const confirm = () => {
-    const seq = 510 + Math.max(0, timeSlots.findIndex((t) => t.id === slotId))
-    setBookingId(`BK-${seq}`)
-    setConfirmOpen(true)
+  const confirm = async () => {
+    if (!user || !slot || !connector) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      // The driver picks a connector *type*; the booking has to name a bay, so
+      // take the first free one of that type and fall back to any of that type.
+      const bay =
+        bays.find((c) => c.type === connector.type && c.status === 'AVAILABLE') ??
+        bays.find((c) => c.type === connector.type)
+
+      const reservation = await createReservation({
+        userId: user.id,
+        stationId: station.id,
+        connectorId: bay?.id ?? null,
+        date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+      })
+      setBookingId(reservation.id)
+      setConfirmOpen(true)
+      slots.refetch()
+    } catch (err) {
+      setSubmitError(err)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (base.loading && !station) return <LoadingRows rows={6} />
+  if (base.error) {
+    return <ErrorState error={base.error} onRetry={base.refetch} title="Could not open booking" />
+  }
+  if (!station) {
+    return (
+      <EmptyState
+        icon={MapPin}
+        title="Station not found"
+        description="This station is no longer on the network, or the link is out of date."
+        action={
+          <Button asChild variant="outline">
+            <Link to="/driver/stations">All stations</Link>
+          </Button>
+        }
+      />
+    )
   }
 
   return (
@@ -241,6 +307,15 @@ export default function Booking() {
                 </span>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {slots.loading && <LoadingRows rows={2} className="col-span-full" />}
+                {slots.error && (
+                  <ErrorState
+                    className="col-span-full"
+                    error={slots.error}
+                    onRetry={slots.refetch}
+                    title="Could not check availability"
+                  />
+                )}
                 {timeSlots.map((t) => {
                   const selected = slotId === t.id
                   return (
@@ -333,7 +408,7 @@ export default function Booking() {
                       <WalletIcon className="h-3.5 w-3.5" /> Wallet balance
                     </span>
                     <span className="font-medium tabular-nums">
-                      {formatCurrency(wallet.balance, wallet.currency)}
+                      {wallet ? formatCurrency(wallet.balance, wallet.currency) : '—'}
                     </span>
                   </div>
                 </div>
@@ -360,11 +435,15 @@ export default function Booking() {
             Next <ChevronRight />
           </Button>
         ) : (
-          <Button onClick={confirm}>
-            <CheckCircle2 /> Confirm booking
+          <Button onClick={confirm} disabled={submitting}>
+            <CheckCircle2 /> {submitting ? 'Booking…' : 'Confirm booking'}
           </Button>
         )}
       </div>
+
+      {submitError && (
+        <ErrorState error={submitError} title="Could not confirm this booking" onRetry={confirm} />
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
@@ -398,7 +477,7 @@ export default function Booking() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Status</span>
-              <StatusBadge status="confirmed" />
+              <StatusBadge status="RESERVED" />
             </div>
           </div>
 

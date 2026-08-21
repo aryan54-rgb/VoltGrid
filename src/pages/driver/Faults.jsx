@@ -25,29 +25,15 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { tickets as seedTickets, faultCategories, SLA_HOURS } from '@/data/tickets'
-import { stations, connectorsFor } from '@/data/stations'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries, useQuery } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { createTicket, fetchFaultCategories, fetchSlaHours, fetchTickets } from '@/lib/api/tickets'
+import { fetchConnectorsFor, fetchStations } from '@/lib/api/stations'
 import { FAULT_CODES } from '@/lib/kiosk-emulator'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
-const REPORTER = 'Jordan Lee (driver)'
-
-function stationName(stationId) {
-  return stations.find((s) => s.id === stationId)?.name ?? '—'
-}
-
-function addHours(date, hours) {
-  return new Date(date.getTime() + hours * 3600 * 1000)
-}
-
-/** Local ISO string without the timezone suffix, matching the stored ticket shape. */
-function localIso(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}:00`
-}
 
 const emptyDraft = {
   stationId: '',
@@ -58,17 +44,35 @@ const emptyDraft = {
 }
 
 export default function Faults() {
-  const [myTickets, setMyTickets] = useState(() =>
-    seedTickets.filter((t) => t.source === 'DRIVER_REPORT')
+  const { user, profile } = useAuth()
+
+  // RLS returns only the tickets this account reported (plus the demo
+  // persona's), so there is no owner filter here.
+  const query = useQueries({
+    tickets: fetchTickets,
+    stations: fetchStations,
+    categories: fetchFaultCategories,
+    sla: fetchSlaHours,
+  })
+  const myTickets = useMemo(
+    () => (query.data?.tickets ?? []).filter((t) => t.source === 'DRIVER_REPORT'),
+    [query.data]
   )
-  const [nextTicketNo, setNextTicketNo] = useState(1043)
+  const stations = useMemo(() => query.data?.stations ?? [], [query.data])
+  const faultCategories = query.data?.categories ?? []
+  const SLA_HOURS = useMemo(() => query.data?.sla ?? {}, [query.data])
+
   const [draft, setDraft] = useState(emptyDraft)
   const [confirmation, setConfirmation] = useState(null)
+  const [submitError, setSubmitError] = useState(null)
 
-  const bays = useMemo(
-    () => (draft.stationId ? connectorsFor(draft.stationId) : []),
+  // The bay list is per station, so it is its own query rather than a slice of
+  // every connector on the network.
+  const baysQuery = useQuery(
+    () => (draft.stationId ? fetchConnectorsFor(draft.stationId) : Promise.resolve([])),
     [draft.stationId]
   )
+  const bays = useMemo(() => baysQuery.data ?? [], [baysQuery.data])
 
   const canSubmit =
     draft.stationId && draft.connectorId && draft.category && draft.description.trim().length > 0
@@ -85,40 +89,40 @@ export default function Faults() {
     setDraft(emptyDraft)
   }
 
-  function submitReport() {
-    const now = new Date()
-    const slaHours = SLA_HOURS[draft.severity]
+  async function submitReport() {
+    if (!user) return
     const bay = bays.find((c) => c.id === draft.connectorId)
-    const nextId = `TK-${nextTicketNo}`
-    setNextTicketNo((n) => n + 1)
-
-    const ticket = {
-      id: nextId,
-      title: draft.category,
-      stationId: draft.stationId,
-      stationName: stationName(draft.stationId),
-      connectorId: draft.connectorId,
-      connectorLabel: bay?.label ?? '—',
-      faultCode: null,
-      priority: draft.severity,
-      status: 'OPEN',
-      source: 'DRIVER_REPORT',
-      reporter: REPORTER,
-      assignedTo: 'Awaiting dispatch',
-      reportedAt: localIso(now),
-      slaDueAt: localIso(addHours(now, slaHours)),
-      description: draft.description.trim(),
-      parts: [],
-      activity: [{ at: localIso(now), who: 'Jordan Lee', what: 'Fault reported from the driver app' }],
+    setSubmitError(null)
+    try {
+      // `sla_due_at` is left to the tickets_apply_sla trigger, so the deadline
+      // comes from sla_policies rather than from whatever the client posts.
+      const ticket = await createTicket({
+        userId: user.id,
+        reporterName: profile?.name ?? 'Driver',
+        stationId: draft.stationId,
+        connectorId: draft.connectorId,
+        connectorLabel: bay?.label ?? '—',
+        category: draft.category,
+        priority: draft.severity,
+        title: draft.category,
+        description: draft.description.trim(),
+      })
+      setConfirmation(ticket)
+      resetForm()
+      query.refetch()
+    } catch (err) {
+      setSubmitError(err)
     }
+  }
 
-    setMyTickets((list) => [ticket, ...list])
-    setConfirmation(ticket)
-    resetForm()
+  if (query.loading && !query.data) return <LoadingRows rows={6} />
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load fault reporting" />
   }
 
   return (
     <div className="space-y-6">
+      {submitError && <ErrorState error={submitError} title="Could not file this report" />}
       <PageHeader
         title="Report a fault"
         description="Tell us what went wrong at a charging bay and track the repair until it is resolved."

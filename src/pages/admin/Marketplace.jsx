@@ -59,33 +59,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { categories, products } from '@/data/marketplace'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import {
+  fetchCategories,
+  fetchProducts,
+  setListingStatus,
+  setProductFlags,
+} from '@/lib/api/marketplace'
 
 const LOW_STOCK = 25
-
-/** Seller submissions waiting on a reviewer. */
-const PENDING_LISTINGS = [
-  {
-    id: 'mp-pending-1',
-    name: 'DualPort 22kW Wallbox',
-    seller: 'NordVolt',
-    category: 'Home charging',
-    price: 899,
-    submitted: '2026-07-29',
-    description:
-      'Two-socket 22kW wallbox with dynamic load balancing across both ports and a built-in energy meter.',
-  },
-  {
-    id: 'mp-pending-2',
-    name: 'Coiled Type 2 Cable · 5m',
-    seller: 'AutoNiche',
-    category: 'Cables',
-    price: 89,
-    submitted: '2026-07-27',
-    description:
-      'Coiled 5m 16A Type 2 cable that retracts off the ground, with a moulded grip and storage strap.',
-  },
-]
 
 /** Gross merchandise value per catalogue category, this month. */
 const GMV_FIGURES = {
@@ -97,10 +80,17 @@ const GMV_FIGURES = {
   Services: 12300,
 }
 
-const GMV_BY_CATEGORY = categories
-  .filter((c) => c !== 'All')
-  .map((category) => ({ category, gmv: GMV_FIGURES[category] ?? 0 }))
-  .sort((a, b) => b.gmv - a.gmv)
+/**
+ * GMV is not derived: the platform records no orders yet, so these are the
+ * agreed monthly figures per category. Replace with a view over `transactions`
+ * once marketplace purchases are being written there.
+ */
+function gmvByCategory(categories) {
+  return categories
+    .filter((c) => c !== 'All')
+    .map((category) => ({ category, gmv: GMV_FIGURES[category] ?? 0 }))
+    .sort((a, b) => b.gmv - a.gmv)
+}
 
 function priceLabel(p) {
   if (!p.price) return 'Free'
@@ -108,14 +98,25 @@ function priceLabel(p) {
 }
 
 export default function Marketplace() {
-  const [items, setItems] = React.useState(products)
-  const [queue, setQueue] = React.useState(PENDING_LISTINGS)
+  const catalogue = useQueries({
+    live: () => fetchProducts({ status: 'live' }),
+    pending: () => fetchProducts({ status: 'pending' }),
+    categories: fetchCategories,
+  })
+  const items = React.useMemo(() => catalogue.data?.live ?? [], [catalogue.data])
+  const queue = React.useMemo(() => catalogue.data?.pending ?? [], [catalogue.data])
+  const categories = React.useMemo(() => catalogue.data?.categories ?? ['All'], [catalogue.data])
+
+  // Curation flags live on the row, so `unlisted` and `featured` are read off
+  // the catalogue rather than held in component state that a reload discards.
+  const unlisted = React.useMemo(() => items.filter((p) => !p.listed).map((p) => p.id), [items])
+  const featured = React.useMemo(() => items.filter((p) => p.featured).map((p) => p.id), [items])
+
   const [query, setQuery] = React.useState('')
   const [category, setCategory] = React.useState('All')
-  const [unlisted, setUnlisted] = React.useState([])
-  const [featured, setFeatured] = React.useState([])
   const [notice, setNotice] = React.useState(null)
   const [removing, setRemoving] = React.useState(null)
+  const [actionError, setActionError] = React.useState(null)
 
   React.useEffect(() => {
     if (!notice) return undefined
@@ -133,65 +134,78 @@ export default function Marketplace() {
     })
   }, [items, query, category])
 
-  const gmv = React.useMemo(() => GMV_BY_CATEGORY.reduce((sum, r) => sum + r.gmv, 0), [])
+  const GMV_BY_CATEGORY = React.useMemo(() => gmvByCategory(categories), [categories])
+  const gmv = React.useMemo(() => GMV_BY_CATEGORY.reduce((sum, r) => sum + r.gmv, 0), [GMV_BY_CATEGORY])
   const avgRating = React.useMemo(() => {
     const rated = items.filter((p) => p.rating > 0)
     if (!rated.length) return '0.0'
     return (rated.reduce((sum, p) => sum + p.rating, 0) / rated.length).toFixed(1)
   }, [items])
 
-  function approve(listing) {
-    setItems((prev) => [
-      {
-        id: listing.id,
-        name: listing.name,
-        category: listing.category,
-        price: listing.price,
-        rating: 0,
-        reviews: 0,
-        badge: null,
-        seller: listing.seller,
-        stock: null,
-        gradient: 'from-slate-400 to-slate-600',
-        description: listing.description,
-      },
-      ...prev,
-    ])
-    setQueue((prev) => prev.filter((l) => l.id !== listing.id))
-    setNotice(`${listing.name} is now live`)
+  // Moderation moves a submission between listing states; nothing is deleted,
+  // so a rejected listing can still be found and reinstated.
+  async function moderate(listing, status, message) {
+    setActionError(null)
+    try {
+      await setListingStatus(listing.id, status)
+      catalogue.refetch()
+      setNotice(message)
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function reject(listing) {
-    setQueue((prev) => prev.filter((l) => l.id !== listing.id))
-    setNotice(`${listing.name} was rejected`)
+  const approve = (listing) => moderate(listing, 'live', `${listing.name} is now live`)
+  const reject = (listing) => moderate(listing, 'rejected', `${listing.name} was rejected`)
+
+  async function setFlags(product, patch, message) {
+    setActionError(null)
+    try {
+      await setProductFlags(product.id, patch)
+      catalogue.refetch()
+      if (message) setNotice(message)
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   function toggleFeatured(product) {
-    setFeatured((prev) =>
-      prev.includes(product.id) ? prev.filter((id) => id !== product.id) : [...prev, product.id]
-    )
-    setNotice(
-      featured.includes(product.id)
-        ? `${product.name} removed from featured`
-        : `${product.name} is now featured`
+    const next = !product.featured
+    setFlags(
+      product,
+      { featured: next },
+      next ? `${product.name} is now featured` : `${product.name} removed from featured`
     )
   }
 
   function toggleUnlisted(product) {
-    setUnlisted((prev) =>
-      prev.includes(product.id) ? prev.filter((id) => id !== product.id) : [...prev, product.id]
-    )
+    setFlags(product, { listed: !product.listed })
   }
 
   function confirmRemove() {
     if (!removing) return
-    setItems((prev) => prev.filter((p) => p.id !== removing.id))
-    setNotice(`${removing.name} was removed`)
+    const target = removing
     setRemoving(null)
+    moderate(target, 'rejected', `${target.name} was removed`)
+  }
+
+  if (catalogue.loading && !catalogue.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={8} />
+      </div>
+    )
+  }
+  if (catalogue.error) {
+    return (
+      <ErrorState error={catalogue.error} onRetry={catalogue.refetch} title="Could not load the catalogue" />
+    )
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Marketplace"
         description="Moderate seller listings, keep the catalogue accurate and track merchandise value."

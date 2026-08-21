@@ -10,9 +10,11 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { adminUsers } from '@/data/users'
-import { platformGrowth, revenueBySegment } from '@/data/analytics'
-import { stations } from '@/data/stations'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchUsers } from '@/lib/api/users'
+import { fetchPlatformGrowth, fetchRevenueBySegment } from '@/lib/api/analytics'
+import { fetchStations } from '@/lib/api/stations'
 import { formatDate, formatNumber } from '@/lib/utils'
 
 /** Core platform services and their rolling 30-day availability. */
@@ -29,12 +31,40 @@ const STATUS_DOT = {
   offline: 'var(--status-critical)',
 }
 
-/** Five newest accounts across the network. */
-const recentSignups = [...adminUsers]
-  .sort((a, b) => new Date(b.joined) - new Date(a.joined))
-  .slice(0, 5)
-
 export default function Dashboard() {
+  const query = useQueries({
+    users: fetchUsers,
+    growth: fetchPlatformGrowth,
+    segments: fetchRevenueBySegment,
+    stations: fetchStations,
+  })
+  const platformGrowth = query.data?.growth ?? []
+  const revenueBySegment = query.data?.segments ?? []
+  const stations = query.data?.stations ?? []
+
+  /** Five newest accounts across the network. */
+  const recentSignups = [...(query.data?.users ?? [])]
+    .sort((a, b) => new Date(b.joined) - new Date(a.joined))
+    .slice(0, 5)
+
+  const latestGrowth = platformGrowth[platformGrowth.length - 1]
+  const latestSegment = revenueBySegment[revenueBySegment.length - 1]
+  const monthlyRevenue = latestSegment
+    ? latestSegment.drivers + latestSegment.fleet + latestSegment.marketplace
+    : null
+
+  if (query.loading && !query.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={6} />
+      </div>
+    )
+  }
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load the dashboard" />
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -43,8 +73,20 @@ export default function Dashboard() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total users" value="14,600" delta={13.2} icon={Users} index={0} />
-        <StatCard label="Monthly revenue" value="$243k" delta={9.4} icon={DollarSign} index={1} />
+        <StatCard
+          label="Total users"
+          value={latestGrowth ? formatNumber(latestGrowth.users) : '—'}
+          delta={13.2}
+          icon={Users}
+          index={0}
+        />
+        <StatCard
+          label="Monthly revenue"
+          value={monthlyRevenue == null ? '—' : `$${monthlyRevenue}k`}
+          delta={9.4}
+          icon={DollarSign}
+          index={1}
+        />
         <StatCard label="Active stations" value={formatNumber(stations.length)} icon={Zap} index={2} />
         <StatCard label="Platform uptime" value="99.2%" icon={Activity} index={3} />
       </div>

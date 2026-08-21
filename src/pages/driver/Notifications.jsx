@@ -24,10 +24,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-import { notifications } from '@/data/notifications'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { fetchNotifications, markAllRead as markAllReadApi, markRead as markReadApi } from '@/lib/api/notifications'
 import { cn, timeAgo } from '@/lib/utils'
-
-const DRIVER_NOTIFICATIONS = notifications.filter((n) => n.roles.includes('driver'))
 
 const TYPE_ICONS = {
   charging: Zap,
@@ -53,13 +54,14 @@ const TYPE_EMPTY = {
   promo: 'No offers at the moment.',
 }
 
-const TYPES = [...new Set(DRIVER_NOTIFICATIONS.map((n) => n.type))]
-
-const TABS = [
-  { value: 'all', label: 'All' },
-  { value: 'unread', label: 'Unread' },
-  ...TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] ?? t })),
-]
+/** Category tabs follow whatever types actually came back for this user. */
+function tabsFor(items) {
+  return [
+    { value: 'all', label: 'All' },
+    { value: 'unread', label: 'Unread' },
+    ...[...new Set(items.map((n) => n.type))].map((t) => ({ value: t, label: TYPE_LABELS[t] ?? t })),
+  ]
+}
 
 const PREFS = [
   { key: 'push', label: 'Push', desc: 'Alerts on this device while you are charging.' },
@@ -77,14 +79,22 @@ const PREFS = [
 ]
 
 export default function Notifications() {
-  const [items, setItems] = useState(DRIVER_NOTIFICATIONS)
+  const { user } = useAuth()
+  const { data, loading, error, refetch, setData } = useQuery(fetchNotifications, [])
   const [tab, setTab] = useState('all')
+  const [dismissed, setDismissed] = useState(() => new Set())
   const [prefs, setPrefs] = useState({
     push: true,
     email: true,
     chargingUpdates: true,
     promotions: false,
   })
+
+  const items = useMemo(
+    () => (data ?? []).filter((n) => !dismissed.has(n.id)),
+    [data, dismissed]
+  )
+  const tabs = useMemo(() => tabsFor(items), [items])
 
   const visible = useMemo(() => {
     const sorted = [...items].sort((a, b) => b.time.localeCompare(a.time))
@@ -95,16 +105,34 @@ export default function Notifications() {
 
   const unreadCount = items.filter((n) => !n.read).length
 
-  function markAllRead() {
-    setItems((list) => list.map((n) => ({ ...n, read: true })))
+  // Read state is written optimistically: the receipt table is the source of
+  // truth, but there is nothing useful to show the user if the insert is slow.
+  async function markAllRead() {
+    if (!user) return
+    const unread = items.filter((n) => !n.read)
+    setData((list) => (list ?? []).map((n) => ({ ...n, read: true })))
+    try {
+      await markAllReadApi(unread, user.id)
+    } catch {
+      refetch()
+    }
   }
 
-  function markRead(id) {
-    setItems((list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  async function markRead(id) {
+    if (!user) return
+    setData((list) => (list ?? []).map((n) => (n.id === id ? { ...n, read: true } : n)))
+    try {
+      await markReadApi(id, user.id)
+    } catch {
+      refetch()
+    }
   }
 
+  // Most rows are broadcasts nobody owns, so there is no row to delete. Hiding
+  // it locally and recording the read receipt is the honest equivalent.
   function remove(id) {
-    setItems((list) => list.filter((n) => n.id !== id))
+    setDismissed((prev) => new Set(prev).add(id))
+    markRead(id)
   }
 
   return (
@@ -125,7 +153,7 @@ export default function Notifications() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
             </TabsTrigger>
@@ -135,7 +163,11 @@ export default function Notifications() {
 
       <Card>
         <CardContent className="p-2">
-          {visible.length === 0 ? (
+          {loading ? (
+            <LoadingRows rows={5} className="p-3" />
+          ) : error ? (
+            <ErrorState error={error} onRetry={refetch} title="Could not load notifications" />
+          ) : visible.length === 0 ? (
             <EmptyState
               icon={Bell}
               title="Nothing here"

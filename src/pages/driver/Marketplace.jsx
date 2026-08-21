@@ -30,8 +30,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { products, categories } from '@/data/marketplace'
-import { wallet } from '@/data/wallet'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchCategories, fetchProducts } from '@/lib/api/marketplace'
+import { fetchWallet, purchase } from '@/lib/api/wallet'
 import { cn, formatCurrency } from '@/lib/utils'
 
 /** One icon per category so a listing reads at a glance. */
@@ -94,6 +96,16 @@ export default function Marketplace() {
   const [detail, setDetail] = useState(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [placedOrder, setPlacedOrder] = useState(null)
+  const [checkoutError, setCheckoutError] = useState(null)
+
+  const shop = useQueries({
+    products: fetchProducts,
+    categories: fetchCategories,
+    wallet: fetchWallet,
+  })
+  const products = useMemo(() => shop.data?.products ?? [], [shop.data])
+  const categories = shop.data?.categories ?? ['All']
+  const wallet = shop.data?.wallet
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -106,7 +118,7 @@ export default function Marketplace() {
         p.description.toLowerCase().includes(q)
       return inCategory && inSearch
     })
-  }, [query, category])
+  }, [products, query, category])
 
   const itemCount = cart.reduce((sum, line) => sum + line.qty, 0)
 
@@ -148,18 +160,30 @@ export default function Marketplace() {
     setCart((prev) => prev.filter((line) => line.id !== id))
   }
 
-  function checkout() {
-    setPlacedOrder({
-      items: itemCount,
-      total: totals.total,
-      balance: wallet.balance - totals.total,
-    })
-    setCart([])
+  // Checkout is a real wallet debit plus a ledger entry, so the order shows up
+  // in Transactions rather than only in this dialog.
+  async function checkout() {
+    if (!wallet?.userId) return
+    const summary = cart.map((line) => `${line.qty}× ${line.name}`).join(', ')
+    setCheckoutError(null)
+    try {
+      const updated = await purchase(wallet.userId, totals.total, `Marketplace · ${summary}`)
+      setPlacedOrder({ items: itemCount, total: totals.total, balance: updated.balance })
+      setCart([])
+      shop.refetch()
+    } catch (err) {
+      setCheckoutError(err)
+    }
   }
 
   function closeCart(open) {
     setCartOpen(open)
     if (!open) setPlacedOrder(null)
+  }
+
+  if (shop.loading && !shop.data) return <LoadingRows rows={6} />
+  if (shop.error) {
+    return <ErrorState error={shop.error} onRetry={shop.refetch} title="Could not load the marketplace" />
   }
 
   return (
@@ -294,6 +318,9 @@ export default function Marketplace() {
 
       <Dialog open={cartOpen} onOpenChange={closeCart}>
         <DialogContent>
+          {checkoutError && (
+            <ErrorState error={checkoutError} title="Checkout did not go through" />
+          )}
           {placedOrder ? (
             <div className="flex flex-col items-center py-4 text-center">
               <motion.div

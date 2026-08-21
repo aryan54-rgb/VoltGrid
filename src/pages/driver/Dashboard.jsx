@@ -29,10 +29,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { activeSession, chargingHistory, monthlyUsage, driverBookings } from '@/data/sessions'
-import { wallet } from '@/data/wallet'
-import { stations } from '@/data/stations'
-import { currentUsers } from '@/data/users'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { fetchActiveSession, fetchChargingHistory } from '@/lib/api/sessions'
+import { fetchMonthlyUsage } from '@/lib/api/analytics'
+import { fetchReservations } from '@/lib/api/reservations'
+import { fetchWallet } from '@/lib/api/wallet'
+import { fetchStations } from '@/lib/api/stations'
 
 function Row({ label, value }) {
   return (
@@ -53,28 +57,79 @@ function availabilityOf(station) {
 
 export default function Dashboard() {
   const [selectedStationId, setSelectedStationId] = React.useState(null)
+  const { profile } = useAuth()
 
-  const driver = currentUsers.driver
+  const query = useQueries({
+    activeSession: fetchActiveSession,
+    history: () => fetchChargingHistory({ limit: 100 }),
+    usage: fetchMonthlyUsage,
+    reservations: fetchReservations,
+    wallet: fetchWallet,
+    stations: fetchStations,
+  })
 
-  const sessionsThisMonth = chargingHistory.filter((s) => s.date.startsWith('2026-07')).length
+  const activeSession = query.data?.activeSession ?? null
+  const history = React.useMemo(() => query.data?.history ?? [], [query.data])
+  const monthlyUsage = query.data?.usage ?? []
+  const wallet = query.data?.wallet
+  const stations = React.useMemo(() => query.data?.stations ?? [], [query.data])
 
-  const nextBooking = driverBookings[0]
+  // "This month" means the calendar month of the most recent session, not the
+  // wall clock - otherwise the tile reads 0 for anyone between charges.
+  const sessionsThisMonth = React.useMemo(() => {
+    const latest = history[0]?.date
+    if (!latest) return 0
+    const month = latest.slice(0, 7)
+    return history.filter((s) => (s.date ?? '').startsWith(month)).length
+  }, [history])
+
+  const nextBooking = React.useMemo(() => {
+    const upcoming = (query.data?.reservations ?? []).filter((r) =>
+      ['RESERVED', 'PENDING', 'ACTIVE'].includes(r.status)
+    )
+    return (
+      [...upcoming].sort((a, b) =>
+        `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`)
+      )[0] ?? null
+    )
+  }, [query.data])
 
   const nearby = React.useMemo(
     () => [...stations].sort((a, b) => a.distance - b.distance).slice(0, 4),
-    []
+    [stations]
   )
 
   const markers = React.useMemo(
     () => stations.map((s) => ({ id: s.id, name: s.name, x: s.x, y: s.y, status: s.status })),
-    []
+    [stations]
   )
+
+  const driverName = profile?.name ?? 'driver'
+  const vehicle = profile?.vehicle ?? 'Your vehicle'
+
+  if (query.loading && !query.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={6} />
+      </div>
+    )
+  }
+  if (query.error) {
+    return (
+      <ErrorState error={query.error} onRetry={query.refetch} title="Could not load your dashboard" />
+    )
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome back, ${driver.name.split(' ')[0]}`}
-        description={`${driver.vehicle} · charging now at ${activeSession.stationName}`}
+        title={`Welcome back, ${driverName.split(' ')[0]}`}
+        description={
+          activeSession
+            ? `${vehicle} · charging now at ${activeSession.stationName}`
+            : `${vehicle} · no session running right now`
+        }
         actions={
           <Button asChild>
             <Link to="/driver/stations">
@@ -88,17 +143,17 @@ export default function Dashboard() {
         <StatCard
           index={0}
           label="Battery level"
-          value={`${activeSession.currentSoc}%`}
+          value={activeSession?.currentSoc != null ? `${activeSession.currentSoc}%` : '—'}
           icon={BatteryCharging}
         />
         <StatCard
           index={1}
           label="Wallet balance"
-          value={formatCurrency(wallet.balance, wallet.currency)}
+          value={wallet ? formatCurrency(wallet.balance, wallet.currency) : '—'}
           icon={WalletIcon}
         />
         <StatCard index={2} label="Sessions this month" value={sessionsThisMonth} icon={Zap} />
-        <StatCard index={3} label="Reward points" value={formatNumber(driver.points)} icon={Award} />
+        <StatCard index={3} label="Reward points" value={formatNumber(profile?.points ?? 0)} icon={Award} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -139,28 +194,36 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
               <CardTitle className="text-base">Active session</CardTitle>
-              <StatusBadge status="charging" />
+              {activeSession && <StatusBadge status="charging" />}
             </CardHeader>
             <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium">{activeSession.stationName}</p>
-                <p className="text-xs text-muted-foreground">{activeSession.charger}</p>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">State of charge</span>
-                  <span className="font-medium tabular-nums">
-                    {activeSession.currentSoc}% → {activeSession.targetSoc}%
-                  </span>
-                </div>
-                <Progress value={activeSession.currentSoc} />
-              </div>
-              <Separator />
-              <Row label="Power" value={`${activeSession.powerKw} kW`} />
-              <Row label="Cost so far" value={formatCurrency(activeSession.costSoFar)} />
-              <Button asChild className="w-full">
-                <Link to="/driver/session">View live session</Link>
-              </Button>
+              {activeSession ? (
+                <>
+                  <div>
+                    <p className="text-sm font-medium">{activeSession.stationName}</p>
+                    <p className="text-xs text-muted-foreground">{activeSession.charger}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">State of charge</span>
+                      <span className="font-medium tabular-nums">
+                        {activeSession.currentSoc}% → {activeSession.targetSoc}%
+                      </span>
+                    </div>
+                    <Progress value={activeSession.currentSoc} />
+                  </div>
+                  <Separator />
+                  <Row label="Power" value={`${activeSession.powerKw ?? 0} kW`} />
+                  <Row label="Cost so far" value={formatCurrency(activeSession.costSoFar)} />
+                  <Button asChild className="w-full">
+                    <Link to="/driver/session">View live session</Link>
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nothing charging right now. Start a session at any station.
+                </p>
+              )}
             </CardContent>
           </Card>
 

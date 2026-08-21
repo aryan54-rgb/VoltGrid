@@ -18,6 +18,7 @@ import {
   Square,
   FileText,
   Plug,
+  Zap,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
@@ -35,29 +36,26 @@ import {
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { activeSession } from '@/data/sessions'
+import { EmptyState } from '@/components/shared/empty-state'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { fetchActiveSession } from '@/lib/api/sessions'
 
 const TICK_MS = 2000
 const SOC_STEP = 1
 const MINUTES_PER_TICK = 2
 
 /** Usable pack size implied by the energy already delivered over the SoC gained. */
-const BATTERY_KWH =
-  activeSession.energyKwh / ((activeSession.currentSoc - activeSession.startSoc) / 100)
-const KWH_PER_SOC = BATTERY_KWH / 100
-
-/** Charging tapers as the pack fills — full rated power early, roughly half near target. */
-function powerAtSoc(soc) {
-  const span = Math.max(1, activeSession.targetSoc - activeSession.currentSoc)
-  const progress = Math.min(1, Math.max(0, (soc - activeSession.currentSoc) / span))
-  return Math.round(activeSession.powerKw * (1 - progress * 0.55))
+function batteryKwhFor(session) {
+  const socGained = (session.currentSoc ?? 0) - (session.startSoc ?? 0)
+  // A session that has only just started has no gain to divide by; 75 kWh is a
+  // reasonable stand-in until the first few percent land.
+  if (!socGained || !session.energyKwh) return 75
+  return session.energyKwh / (socGained / 100)
 }
 
-/** Last telemetry stamp is 19:17 — the live feed continues from there. */
-const BASE_CLOCK_MIN = 19 * 60 + 17
-
-function clockLabel(offsetMin) {
-  const total = (BASE_CLOCK_MIN + offsetMin) % (24 * 60)
+function clockLabelFrom(baseMinutes, offsetMin) {
+  const total = (baseMinutes + offsetMin) % (24 * 60)
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
@@ -118,22 +116,56 @@ function DetailRow({ label, value }) {
   )
 }
 
-const INITIAL_LIVE = {
-  soc: activeSession.currentSoc,
-  energyKwh: activeSession.energyKwh,
-  costSoFar: activeSession.costSoFar,
-  powerKw: activeSession.powerKw,
-  elapsedMin: 0,
-}
+/**
+ * The live screen for one running session.
+ *
+ * The row in `sessions` is the starting point; the ticking SoC, power taper and
+ * running cost are simulated on top of it because the platform has no telemetry
+ * feed yet. Swap the interval below for a Supabase Realtime subscription on the
+ * `sessions` row and everything else here keeps working.
+ */
+function LiveSession({ session }) {
+  const activeSession = session
+  const kwhPerSoc = React.useMemo(() => batteryKwhFor(session) / 100, [session])
 
-export default function ActiveSession() {
-  const [live, setLive] = React.useState(INITIAL_LIVE)
+  // The feed continues from the last telemetry stamp on the stored curve.
+  const baseClockMin = React.useMemo(() => {
+    const last = session.powerCurve?.[session.powerCurve.length - 1]?.t
+    if (!last) return new Date(session.startedAt).getHours() * 60 + new Date(session.startedAt).getMinutes()
+    const [h, m] = last.split(':').map(Number)
+    return h * 60 + m
+  }, [session])
+
+  const clockLabel = React.useCallback((offset) => clockLabelFrom(baseClockMin, offset), [baseClockMin])
+
+  /** Charging tapers as the pack fills — full rated power early, about half near target. */
+  const powerAtSoc = React.useCallback(
+    (soc) => {
+      const span = Math.max(1, session.targetSoc - session.currentSoc)
+      const progress = Math.min(1, Math.max(0, (soc - session.currentSoc) / span))
+      return Math.round((session.powerKw ?? 0) * (1 - progress * 0.55))
+    },
+    [session]
+  )
+
+  const initialLive = React.useMemo(
+    () => ({
+      soc: session.currentSoc ?? 0,
+      energyKwh: session.energyKwh ?? 0,
+      costSoFar: session.costSoFar ?? 0,
+      powerKw: session.powerKw ?? 0,
+      elapsedMin: 0,
+    }),
+    [session]
+  )
+
+  const [live, setLive] = React.useState(initialLive)
   const [curve, setCurve] = React.useState(() =>
-    activeSession.powerCurve.map((p) => ({ t: p.t, kw: p.kw }))
+    (session.powerCurve ?? []).map((p) => ({ t: p.t, kw: p.kw }))
   )
   const [status, setStatus] = React.useState('charging')
   const [stopOpen, setStopOpen] = React.useState(false)
-  const liveRef = React.useRef(INITIAL_LIVE)
+  const liveRef = React.useRef(initialLive)
 
   React.useEffect(() => {
     if (status !== 'charging') return undefined
@@ -144,7 +176,7 @@ export default function ActiveSession() {
         return
       }
       const soc = Math.min(activeSession.targetSoc, prev.soc + SOC_STEP)
-      const gained = (soc - prev.soc) * KWH_PER_SOC
+      const gained = (soc - prev.soc) * kwhPerSoc
       const next = {
         soc,
         energyKwh: prev.energyKwh + gained,
@@ -157,10 +189,10 @@ export default function ActiveSession() {
       setCurve((c) => [...c, { t: clockLabel(next.elapsedMin), kw: next.powerKw }])
     }, TICK_MS)
     return () => clearInterval(interval)
-  }, [status])
+  }, [status, activeSession, kwhPerSoc, powerAtSoc, clockLabel])
 
   const charging = status === 'charging'
-  const remainingKwh = Math.max(0, (activeSession.targetSoc - live.soc) * KWH_PER_SOC)
+  const remainingKwh = Math.max(0, (activeSession.targetSoc - live.soc) * kwhPerSoc)
   const minutesRemaining = charging && live.powerKw > 0 ? (remainingKwh / live.powerKw) * 60 : 0
 
   const stopSession = () => {
@@ -358,4 +390,29 @@ export default function ActiveSession() {
       </Dialog>
     </div>
   )
+}
+
+export default function ActiveSession() {
+  const { data, loading, error, refetch } = useQuery(fetchActiveSession, [])
+
+  if (loading && !data) return <LoadingRows rows={6} />
+  if (error) {
+    return <ErrorState error={error} onRetry={refetch} title="Could not load your session" />
+  }
+  if (!data) {
+    return (
+      <EmptyState
+        icon={Zap}
+        title="No session running"
+        description="Plug in at any VoltGrid bay and the live view will appear here."
+        action={
+          <Button asChild>
+            <Link to="/driver/stations">Find a station</Link>
+          </Button>
+        }
+      />
+    )
+  }
+  // Remount when the session changes so the simulation restarts from its state.
+  return <LiveSession key={data.id} session={data} />
 }

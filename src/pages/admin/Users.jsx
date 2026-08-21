@@ -23,13 +23,14 @@ import {
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
-import { adminUsers } from '@/data/users'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { deleteUser, fetchUsers, setUserStatus } from '@/lib/api/users'
 import { formatCurrency, formatDate, formatNumber, initials } from '@/lib/utils'
 
 const PAGE_SIZE = 8
 
-/** Roles actually present on the platform, derived from the account list. */
-const ROLE_OPTIONS = [...new Set(adminUsers.map((u) => u.role))]
+const ALL_ROLES = ['driver', 'fleet', 'operator', 'admin']
 const STATUS_OPTIONS = ['active', 'suspended', 'pending']
 
 const label = (value) => value.charAt(0).toUpperCase() + value.slice(1)
@@ -37,7 +38,12 @@ const label = (value) => value.charAt(0).toUpperCase() + value.slice(1)
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
 
 export default function Users() {
-  const [users, setUsers] = useState(adminUsers)
+  // Only an admin sees more than their own row here — that is the "Admins can
+  // view all profiles" policy, not a filter in this component.
+  const directory = useQuery(fetchUsers, [])
+  const users = useMemo(() => directory.data ?? [], [directory.data])
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -46,8 +52,14 @@ export default function Users() {
   const [profileTarget, setProfileTarget] = useState(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState(ROLE_OPTIONS[0])
+  const [inviteRole, setInviteRole] = useState(ALL_ROLES[0])
   const [inviteSent, setInviteSent] = useState(false)
+
+  /** Roles actually present on the platform, derived from the account list. */
+  const ROLE_OPTIONS = useMemo(() => {
+    const present = [...new Set(users.map((u) => u.role))]
+    return present.length ? present : ALL_ROLES
+  }, [users])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -67,17 +79,30 @@ export default function Users() {
   const suspendedCount = users.filter((u) => u.status === 'suspended').length
   const newCount = users.filter((u) => Date.now() - new Date(u.joined).getTime() < THIRTY_DAYS).length
 
-  const toggleSuspend = (id) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, status: u.status === 'suspended' ? 'active' : 'suspended' } : u
-      )
-    )
+  // Both of these go through an admin-only database function; a plain UPDATE
+  // would need a column grant that every user could then abuse on their own row.
+  const toggleSuspend = async (id) => {
+    const user = users.find((u) => u.id === id)
+    if (!user) return
+    setActionError(null)
+    try {
+      await setUserStatus(id, user.status === 'suspended' ? 'active' : 'suspended')
+      directory.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  const confirmDelete = () => {
-    setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id))
+  const confirmDelete = async () => {
+    const id = deleteTarget.id
     setDeleteTarget(null)
+    setActionError(null)
+    try {
+      await deleteUser(id)
+      directory.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   const closeInvite = (open) => {
@@ -85,12 +110,25 @@ export default function Users() {
     if (!open) {
       setInviteSent(false)
       setInviteEmail('')
-      setInviteRole(ROLE_OPTIONS[0])
+      setInviteRole(ALL_ROLES[0])
     }
+  }
+
+  if (directory.loading && !directory.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={8} />
+      </div>
+    )
+  }
+  if (directory.error) {
+    return <ErrorState error={directory.error} onRetry={directory.refetch} title="Could not load users" />
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Users"
         description="Every account on the VoltGrid platform."

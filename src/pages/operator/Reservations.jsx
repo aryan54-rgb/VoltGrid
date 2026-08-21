@@ -26,8 +26,14 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn, formatDate, initials } from '@/lib/utils'
-import { reservationsList } from '@/data/analytics'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
 
+/**
+ * The day the board opens on. The seeded booking book is dated end of July
+ * 2026; point this at `new Date()` once real bookings are coming in.
+ */
 const TODAY = '2026-07-31'
 
 function dayLabel(date) {
@@ -55,16 +61,18 @@ function mockContact(name) {
 }
 
 export default function Reservations() {
-  const [list, setList] = useState(reservationsList)
+  // Operators read the whole booking book — that widening lives in the
+  // reservations SELECT policy, not in this query.
+  const book = useQuery(fetchReservations, [])
+  const list = useMemo(() => book.data ?? [], [book.data])
+
   const [day, setDay] = useState(TODAY)
   const [stationFilter, setStationFilter] = useState('all')
   const [selected, setSelected] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
-  const days = useMemo(() => [...new Set(reservationsList.map((r) => r.date))].sort(), [])
-  const stationOptions = useMemo(
-    () => [...new Set(reservationsList.map((r) => r.station))].sort(),
-    []
-  )
+  const days = useMemo(() => [...new Set(list.map((r) => r.date))].sort(), [list])
+  const stationOptions = useMemo(() => [...new Set(list.map((r) => r.station))].sort(), [list])
 
   const filtered = useMemo(
     () => list.filter((r) => r.date === day && (stationFilter === 'all' || r.station === stationFilter)),
@@ -72,17 +80,29 @@ export default function Reservations() {
   )
 
   const todayCount = list.filter((r) => r.date === TODAY).length
-  const confirmedCount = list.filter((r) => r.status === 'confirmed').length
-  const pendingCount = list.filter((r) => r.status === 'pending').length
+  const confirmedCount = list.filter((r) => r.status === 'RESERVED').length
+  const pendingCount = list.filter((r) => r.status === 'PENDING').length
 
-  const setStatus = (id, status) => {
-    setList((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
-    setSelected((prev) => (prev && prev.id === id ? { ...prev, status } : prev))
+  const setStatus = async (id, status) => {
+    setActionError(null)
+    try {
+      await setReservationStatus(id, status)
+      setSelected((prev) => (prev && prev.id === id ? { ...prev, status } : prev))
+      book.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (book.loading && !book.data) return <LoadingRows rows={8} />
+  if (book.error) {
+    return <ErrorState error={book.error} onRetry={book.refetch} title="Could not load reservations" />
   }
 
   return (
     <TooltipProvider delayDuration={200}>
       <div className="space-y-6">
+        {actionError && <ErrorState error={actionError} title="That change did not go through" />}
         <PageHeader
           title="Reservations"
           description="Stall-level bookings across the stations you operate."
@@ -189,10 +209,10 @@ export default function Reservations() {
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Approve reservation"
-                                disabled={r.status !== 'pending'}
+                                disabled={r.status !== 'PENDING'}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  setStatus(r.id, 'confirmed')
+                                  setStatus(r.id, 'RESERVED')
                                 }}
                               >
                                 <Check className="h-4 w-4" />
@@ -206,10 +226,10 @@ export default function Reservations() {
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Cancel reservation"
-                                disabled={r.status === 'cancelled'}
+                                disabled={r.status === 'CANCELLED'}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  setStatus(r.id, 'cancelled')
+                                  setStatus(r.id, 'CANCELLED')
                                 }}
                               >
                                 <X className="h-4 w-4" />
@@ -273,13 +293,13 @@ export default function Reservations() {
                   </div>
                 </div>
                 <DialogFooter>
-                  {selected.status === 'pending' && (
-                    <Button onClick={() => setStatus(selected.id, 'confirmed')}>
+                  {selected.status === 'PENDING' && (
+                    <Button onClick={() => setStatus(selected.id, 'RESERVED')}>
                       <Check /> Approve
                     </Button>
                   )}
-                  {selected.status !== 'cancelled' && (
-                    <Button variant="outline" onClick={() => setStatus(selected.id, 'cancelled')}>
+                  {selected.status !== 'CANCELLED' && (
+                    <Button variant="outline" onClick={() => setStatus(selected.id, 'CANCELLED')}>
                       <X /> Cancel reservation
                     </Button>
                   )}

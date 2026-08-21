@@ -29,9 +29,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatCurrency } from '@/lib/utils'
-import { stations as stationsData } from '@/data/stations'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 
-const OPERATORS = [...new Set(stationsData.map((s) => s.operator))]
+const FALLBACK_OPERATOR = 'VoltGrid Network'
 const STATUSES = [
   { value: 'online', label: 'Online' },
   { value: 'in-use', label: 'All bays busy' },
@@ -40,7 +42,9 @@ const STATUSES = [
 ]
 
 export default function Stations() {
-  const [stations, setStations] = useState(stationsData)
+  const query_ = useQuery(fetchStations, [])
+  const stations = useMemo(() => query_.data ?? [], [query_.data])
+
   const [selectedId, setSelectedId] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -56,6 +60,13 @@ export default function Stations() {
   const [editPrice, setEditPrice] = useState('')
   const [editStatus, setEditStatus] = useState('online')
   const [savedId, setSavedId] = useState(null)
+  const [actionError, setActionError] = useState(null)
+
+  // The operator filter offers whoever actually runs a site on the network.
+  const OPERATORS = useMemo(
+    () => [...new Set(stations.map((s) => s.operator))].filter(Boolean),
+    [stations]
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -79,31 +90,21 @@ export default function Stations() {
     }
   }
 
-  const addStation = () => {
+  const addStation = async () => {
     if (!form.name.trim()) return
-    const count = Math.max(1, parseInt(form.connectors, 10) || 1)
-    setStations((prev) => [
-      ...prev,
-      {
-        id: `st-${String(prev.length + 1).padStart(2, '0')}`,
+    setActionError(null)
+    try {
+      await createStation({
         name: form.name.trim(),
-        address: form.address.trim() || 'Address pending',
-        city: 'San Francisco, CA',
-        distance: 0,
-        rating: 0,
-        reviews: 0,
-        pricePerKwh: 0.4,
-        status: 'online',
-        x: 20 + ((prev.length * 17) % 60),
-        y: 18 + ((prev.length * 23) % 55),
-        connectors: [{ type: 'CCS2', power: 150, total: count, available: count }],
-        amenities: [],
-        hours: 'Open 24 hours',
-        operator: OPERATORS[0],
-        utilization: 0,
-      },
-    ])
-    setAddDone(true)
+        address: form.address.trim(),
+        operator: OPERATORS[0] ?? FALLBACK_OPERATOR,
+        connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
+      })
+      setAddDone(true)
+      query_.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   const openManage = (station) => {
@@ -113,24 +114,29 @@ export default function Stations() {
     setSavedId(null)
   }
 
-  const saveManage = () => {
+  const saveManage = async () => {
     const price = parseFloat(editPrice)
-    setStations((prev) =>
-      prev.map((s) =>
-        s.id === managing.id
-          ? {
-              ...s,
-              pricePerKwh: Number.isFinite(price) ? price : s.pricePerKwh,
-              status: editStatus,
-            }
-          : s
-      )
-    )
-    setSavedId(managing.id)
+    setActionError(null)
+    try {
+      await updateStation(managing.id, {
+        pricePerKwh: Number.isFinite(price) ? price : undefined,
+        status: editStatus,
+      })
+      setSavedId(managing.id)
+      query_.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (query_.loading && !query_.data) return <LoadingRows rows={6} />
+  if (query_.error) {
+    return <ErrorState error={query_.error} onRetry={query_.refetch} title="Could not load stations" />
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Stations"
         description="Add sites, set pricing and publish availability."

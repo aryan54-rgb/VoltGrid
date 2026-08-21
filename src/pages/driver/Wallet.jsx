@@ -37,7 +37,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils'
-import { wallet, transactions } from '@/data/wallet'
+import { EmptyState } from '@/components/shared/empty-state'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import {
+  fetchTransactions,
+  fetchWallet,
+  topUp as topUpApi,
+  updateAutoTopUp,
+} from '@/lib/api/wallet'
 
 const PRESETS = [25, 50, 100]
 
@@ -60,25 +68,43 @@ function Row({ label, value, strong }) {
   )
 }
 
+const EMPTY_WALLET = { balance: 0, currency: 'USD', autoTopUp: false, autoTopUpThreshold: 0, autoTopUpAmount: 0, cards: [] }
+
 export default function Wallet() {
-  const [balance, setBalance] = React.useState(wallet.balance)
-  const [autoTopUp, setAutoTopUp] = React.useState(wallet.autoTopUp)
+  const query = useQueries({
+    wallet: fetchWallet,
+    transactions: () => fetchTransactions({ limit: 200 }),
+  })
+  const wallet = query.data?.wallet ?? EMPTY_WALLET
+  const transactions = React.useMemo(() => query.data?.transactions ?? [], [query.data])
 
   const [addOpen, setAddOpen] = React.useState(false)
   const [amount, setAmount] = React.useState('50')
-  const [cardId, setCardId] = React.useState(
-    wallet.cards.find((c) => c.primary)?.id ?? wallet.cards[0].id
-  )
+  const [cardId, setCardId] = React.useState(null)
   const [addedAmount, setAddedAmount] = React.useState(null)
+  const [busy, setBusy] = React.useState(false)
+  const [actionError, setActionError] = React.useState(null)
 
+  // Default the card picker to the primary card once the wallet has landed.
+  React.useEffect(() => {
+    if (cardId || !wallet.cards.length) return
+    setCardId(wallet.cards.find((c) => c.primary)?.id ?? wallet.cards[0].id)
+  }, [cardId, wallet.cards])
+
+  const balance = wallet.balance
+  const autoTopUp = wallet.autoTopUp
+
+  // Scoped to the month of the most recent movement rather than the wall clock,
+  // so the tiles still describe real activity between busy months.
   const thisMonth = React.useMemo(() => {
-    const rows = transactions.filter((t) => t.date.startsWith('2026-07'))
+    const month = transactions[0]?.date?.slice(0, 7)
+    const rows = month ? transactions.filter((t) => t.date.startsWith(month)) : []
     return {
       spent: rows.filter((t) => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0),
       toppedUp: rows.filter((t) => t.type === 'topup').reduce((sum, t) => sum + t.amount, 0),
       sessions: rows.filter((t) => t.type === 'charge').length,
     }
-  }, [])
+  }, [transactions])
 
   const recent = transactions.slice(0, 6)
   const primaryCard = wallet.cards.find((c) => c.primary)
@@ -94,10 +120,44 @@ export default function Wallet() {
     }
   }
 
-  function confirmTopUp() {
-    if (!amountValid) return
-    setBalance((b) => Number((b + parsedAmount).toFixed(2)))
-    setAddedAmount(parsedAmount)
+  async function confirmTopUp() {
+    if (!amountValid || !wallet.userId) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await topUpApi(wallet.userId, parsedAmount, selectedCard ? `${selectedCard.brand} •••• ${selectedCard.last4}` : 'Wallet')
+      setAddedAmount(parsedAmount)
+      query.refetch()
+    } catch (err) {
+      setActionError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggleAutoTopUp(enabled) {
+    if (!wallet.userId) return
+    setActionError(null)
+    try {
+      await updateAutoTopUp(wallet.userId, { enabled })
+      query.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (query.loading && !query.data) return <LoadingRows rows={7} />
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load your wallet" />
+  }
+  if (!query.data?.wallet) {
+    return (
+      <EmptyState
+        icon={WalletIcon}
+        title="No wallet yet"
+        description="A wallet is created with your account. Sign out and back in if this persists."
+      />
+    )
   }
 
   return (
@@ -106,6 +166,10 @@ export default function Wallet() {
         title="Wallet"
         description="Your prepaid balance, payment methods and recent activity."
       />
+
+      {actionError && (
+        <ErrorState error={actionError} title="That wallet change did not go through" />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card lg:col-span-2">
@@ -183,7 +247,7 @@ export default function Wallet() {
               <CardTitle className="text-base">Auto top-up</CardTitle>
               <CardDescription>Keeps your wallet funded between sessions.</CardDescription>
             </div>
-            <Switch checked={autoTopUp} onCheckedChange={setAutoTopUp} aria-label="Auto top-up" />
+            <Switch checked={autoTopUp} onCheckedChange={toggleAutoTopUp} aria-label="Auto top-up" />
           </CardHeader>
           <CardContent className="space-y-3">
             <Row label="Threshold" value={formatCurrency(wallet.autoTopUpThreshold)} />
@@ -299,7 +363,7 @@ export default function Wallet() {
                 <Button variant="outline" onClick={() => toggleDialog(false)}>
                   Cancel
                 </Button>
-                <Button disabled={!amountValid} onClick={confirmTopUp}>
+                <Button disabled={!amountValid || busy} onClick={confirmTopUp}>
                   Confirm {amountValid ? formatCurrency(parsedAmount) : ''}
                 </Button>
               </DialogFooter>

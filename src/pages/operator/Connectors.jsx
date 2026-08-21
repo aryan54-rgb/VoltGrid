@@ -41,7 +41,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
-import { connectors as connectorsData, stations } from '@/data/stations'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchConnectors, fetchStations, updateConnectorStatus } from '@/lib/api/stations'
 
 const PAGE_SIZE = 10
 const STATUSES = ['AVAILABLE', 'RESERVED', 'OCCUPIED', 'FAULTED']
@@ -52,12 +54,12 @@ const STATUS_LABEL = {
   FAULTED: 'Faulted',
 }
 
-function stationName(stationId) {
-  return stations.find((s) => s.id === stationId)?.name ?? '—'
-}
-
 export default function Connectors() {
-  const [list, setList] = useState(connectorsData)
+  const board = useQueries({ connectors: fetchConnectors, stations: fetchStations })
+  const list = useMemo(() => board.data?.connectors ?? [], [board.data])
+  const stations = board.data?.stations ?? []
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [stationFilter, setStationFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -80,7 +82,7 @@ export default function Connectors() {
         !q ||
         c.label.toLowerCase().includes(q) ||
         c.id.toLowerCase().includes(q) ||
-        stationName(c.stationId).toLowerCase().includes(q)
+        c.stationName.toLowerCase().includes(q)
       const matchesStation = stationFilter === 'all' || c.stationId === stationFilter
       const matchesStatus = statusFilter === 'all' || c.status === statusFilter
       return matchesQuery && matchesStation && matchesStatus
@@ -91,14 +93,22 @@ export default function Connectors() {
   const currentPage = Math.min(page, totalPages)
   const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  const setStatus = (id, status) => {
-    setList((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
+  const setStatus = async (id, status) => {
+    setActionError(null)
+    try {
+      await updateConnectorStatus(id, status)
+      board.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
+  // The restart is still simulated — there is no OCPP link behind this button
+  // yet. The state it writes back afterwards is real.
   const restart = (id) => {
     setRestarting((prev) => [...prev, id])
-    setTimeout(() => {
-      setStatus(id, 'AVAILABLE')
+    setTimeout(async () => {
+      await setStatus(id, 'AVAILABLE')
       setRestarting((prev) => prev.filter((x) => x !== id))
     }, 1500)
   }
@@ -107,8 +117,14 @@ export default function Connectors() {
     setStatus(connector.id, connector.status === 'FAULTED' ? 'AVAILABLE' : 'FAULTED')
   }
 
+  if (board.loading && !board.data) return <LoadingRows rows={8} />
+  if (board.error) {
+    return <ErrorState error={board.error} onRetry={board.refetch} title="Could not load connectors" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Connectors"
         description="Every charging bay you operate — type, power rating and current status."
@@ -245,7 +261,7 @@ export default function Connectors() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {stationName(c.stationId)}
+                      {c.stationName}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.powerKw}</TableCell>
                     <TableCell className="text-right tabular-nums">
@@ -355,7 +371,7 @@ export default function Connectors() {
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Station</span>
-                  <span className="font-medium">{stationName(ticketFor.stationId)}</span>
+                  <span className="font-medium">{ticketFor.stationName}</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Source</span>

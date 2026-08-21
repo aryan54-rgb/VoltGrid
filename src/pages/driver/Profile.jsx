@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Car, Plus, ShieldAlert, Check, KeyRound } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -26,19 +26,26 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import { useTheme } from '@/context/theme'
-import { currentUsers } from '@/data/users'
+import { ErrorState } from '@/components/shared/query-state'
+import { useAuth } from '@/context/auth'
+import { ROLE_META } from '@/lib/nav'
 import { formatDate, initials } from '@/lib/utils'
 
-const user = currentUsers.driver
 
 export default function Profile() {
   const { theme, setTheme } = useTheme()
+  const { profile, updateProfile } = useAuth()
+
+  const roleLabel = ROLE_META[profile?.role]?.label ?? 'EV Driver'
+  const vehicle = profile?.vehicle ?? 'No vehicle on file'
+
   const [account, setAccount] = useState({
-    name: user.name,
-    email: user.email,
+    name: profile?.name ?? '',
+    email: profile?.email ?? '',
     phone: '+91 98220 41783',
   })
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState(null)
   const [registration, setRegistration] = useState('MH 12 QR 4821')
   const [prefs, setPrefs] = useState({ autoTopUp: true, reservationReminders: true })
   const [connector, setConnector] = useState('CCS2')
@@ -46,7 +53,23 @@ export default function Profile() {
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  function saveAccount() {
+  // The profile arrives a round-trip after the session, so seed the form from
+  // it the first time it lands rather than on mount only.
+  useEffect(() => {
+    if (!profile) return
+    setAccount((a) => ({ ...a, name: profile.name ?? '', email: profile.email ?? '' }))
+  }, [profile])
+
+  async function saveAccount() {
+    setSaveError(null)
+    // Only `name` is writable here. `email` belongs to auth.users and `role` is
+    // blocked by column-level grants, which is what stops a driver from
+    // promoting themselves.
+    const { error } = await updateProfile({ name: account.name })
+    if (error) {
+      setSaveError(error)
+      return
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 1800)
   }
@@ -70,11 +93,11 @@ export default function Profile() {
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">{account.name}</h2>
-              <Badge variant="secondary">{user.roleLabel}</Badge>
+              <Badge variant="secondary">{roleLabel}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">{account.email}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Member since {formatDate(user.memberSince)} · {user.vehicle}
+              {profile?.joined ? `Member since ${formatDate(profile.joined)}` : 'Member'} · {vehicle}
             </p>
           </div>
         </CardContent>
@@ -94,7 +117,7 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="text-base">Account details</CardTitle>
               <CardDescription>
-                This account is bound to the {user.roleLabel} role, which decides the portal and
+                This account is bound to the {roleLabel} role, which decides the portal and
                 permissions you see.
               </CardDescription>
             </CardHeader>
@@ -110,12 +133,7 @@ export default function Profile() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={account.email}
-                    onChange={(e) => setAccount((a) => ({ ...a, email: e.target.value }))}
-                  />
+                  <Input id="email" type="email" value={account.email} readOnly className="text-muted-foreground" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
@@ -127,7 +145,7 @@ export default function Profile() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" value={user.roleLabel} readOnly className="text-muted-foreground" />
+                  <Input id="role" value={roleLabel} readOnly className="text-muted-foreground" />
                 </div>
               </div>
               <div>
@@ -141,8 +159,10 @@ export default function Profile() {
                   )}
                 </Button>
               </div>
+              {saveError && <ErrorState error={saveError} title="Could not save your profile" />}
               <p className="text-xs text-muted-foreground">
-                Roles are assigned by an administrator; a driver cannot change their own role.
+                Roles are assigned by an administrator; a driver cannot change their own role. Your
+                sign-in email is managed by the authentication service and cannot be edited here.
               </p>
             </CardContent>
           </Card>
@@ -156,7 +176,7 @@ export default function Profile() {
                 <Car className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">{user.vehicle}</CardTitle>
+                <CardTitle className="text-base">{vehicle}</CardTitle>
                 <CardDescription>Primary vehicle</CardDescription>
               </div>
             </CardHeader>

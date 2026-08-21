@@ -14,7 +14,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
-import { energyMix, regionPerformance } from '@/data/analytics'
+import { ErrorState, LoadingBlock, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { fetchEnergyMix, fetchRegionPerformance } from '@/lib/api/analytics'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 
 /** Exportable reports available for analysis. */
@@ -33,13 +35,16 @@ const INITIAL_SCHEDULES = [
   { id: 'sr-3', name: 'Daily uptime snapshot', cadence: 'Daily', recipients: 'ops@voltgrid.com', enabled: false },
 ]
 
-const TOTAL_MIX = energyMix.reduce((sum, e) => sum + e.value, 0)
-
 export default function Reports() {
   const [period, setPeriod] = useState('30d')
   const [generating, setGenerating] = useState('idle')
   const [downloaded, setDownloaded] = useState({})
   const [schedules, setSchedules] = useState(INITIAL_SCHEDULES)
+
+  const regions = useQuery(fetchRegionPerformance, [])
+  const mix = useQuery(fetchEnergyMix, [])
+  const energyMix = mix.data ?? []
+  const totalMix = energyMix.reduce((sum, e) => sum + e.value, 0)
 
   const generate = () => {
     setGenerating('loading')
@@ -119,6 +124,9 @@ export default function Reports() {
             <CardDescription>Stations, uptime, revenue and growth by region</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
+            {regions.loading && <LoadingRows rows={5} className="py-2" />}
+            {regions.error && <ErrorState error={regions.error} onRetry={regions.refetch} />}
+            {!regions.loading && !regions.error && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -130,32 +138,36 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {regionPerformance.map((r) => (
+                {(regions.data ?? []).map((r) => (
                   <TableRow key={r.region}>
                     <TableCell className="font-medium text-foreground">{r.region}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.stations}</TableCell>
                     <TableCell className="text-right">
-                      {r.uptimePct < 97 ? (
-                        <Badge variant="warning">{r.uptimePct}%</Badge>
+                      {r.uptime < 97 ? (
+                        <Badge variant="warning">{r.uptime}%</Badge>
                       ) : (
-                        <span className="tabular-nums">{r.uptimePct}%</span>
+                        <span className="tabular-nums">{r.uptime}%</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(r.revenue)}</TableCell>
                     <TableCell className="text-right">
                       <span className="inline-flex items-center gap-0.5 tabular-nums text-[var(--delta-good)]">
                         <ArrowUpRight className="h-3.5 w-3.5" />
-                        {r.growthPct}%
+                        {r.growth}%
                       </span>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
 
         <ChartCard title="Energy mix" description="Share of energy delivered by source" height={280}>
+          {mix.loading && <LoadingBlock className="h-full" />}
+          {mix.error && <ErrorState error={mix.error} onRetry={mix.refetch} className="h-full" />}
+          {!mix.loading && !mix.error && (
           <div className="flex h-full items-center gap-6">
             <div className="relative h-full flex-1">
               <ResponsiveContainer width="100%" height="100%">
@@ -173,7 +185,7 @@ export default function Reports() {
                       <Cell key={e.name} fill={CHART_COLORS[i]} />
                     ))}
                   </Pie>
-                  <RTooltip content={<ChartTooltip formatter={(v) => `${Math.round((v / TOTAL_MIX) * 100)}%`} />} />
+                  <RTooltip content={<ChartTooltip formatter={(v) => `${Math.round((v / totalMix) * 100)}%`} />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -186,6 +198,7 @@ export default function Reports() {
               items={energyMix.map((e, i) => ({ label: e.name, color: CHART_COLORS[i] }))}
             />
           </div>
+          )}
         </ChartCard>
       </div>
 

@@ -34,7 +34,10 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { fleetVehicles } from '@/data/fleet'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { createVehicle, fetchVehicles, removeVehicle } from '@/lib/api/fleet'
 import { cn, formatNumber } from '@/lib/utils'
 
 const STATUSES = ['active', 'charging', 'idle', 'maintenance']
@@ -44,7 +47,14 @@ const STATUS_LABELS = {
   idle: 'Idle',
   maintenance: 'Maintenance',
 }
-const MODELS = [...new Set(fleetVehicles.map((v) => v.model))]
+/** Models offered in the add-vehicle picker before the roster has loaded. */
+const FALLBACK_MODELS = [
+  'Ford E-Transit',
+  'Rivian EDV 700',
+  'Rivian EDV 500',
+  'Mercedes eSprinter',
+  'BrightDrop Zevo 600',
+]
 
 /** Deterministic 8-point state-of-charge trace ending at the vehicle's current level. */
 function socHistory(vehicle) {
@@ -59,7 +69,11 @@ function socHistory(vehicle) {
 }
 
 export default function Vehicles() {
-  const [vehicles, setVehicles] = useState(fleetVehicles)
+  const { profile } = useAuth()
+  const roster = useQuery(fetchVehicles, [])
+  const vehicles = useMemo(() => roster.data ?? [], [roster.data])
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [modelFilter, setModelFilter] = useState('all')
@@ -67,6 +81,13 @@ export default function Vehicles() {
   const [form, setForm] = useState({ model: '', id: '', driver: '' })
   const [selected, setSelected] = useState(null)
   const [notice, setNotice] = useState('')
+
+  // The model filter follows the roster, so a newly commissioned model appears
+  // without a code change.
+  const MODELS = useMemo(() => {
+    const fromRoster = [...new Set(vehicles.map((v) => v.model))]
+    return fromRoster.length ? fromRoster : FALLBACK_MODELS
+  }, [vehicles])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -78,38 +99,47 @@ export default function Vehicles() {
     })
   }, [vehicles, query, statusFilter, modelFilter])
 
-  function addVehicle() {
+  async function addVehicle() {
     if (!form.model || !form.id.trim()) return
-    setVehicles((prev) => [
-      ...prev,
-      {
+    setActionError(null)
+    try {
+      await createVehicle({
+        company: profile?.company ?? 'Swift Logistics',
         id: form.id.trim(),
         model: form.model,
-        driver: form.driver.trim() || '—',
-        soc: 100,
-        rangeKm: 300,
-        status: 'idle',
-        location: 'Depot · Lot A',
-        odometer: 0,
-        health: 100,
-        nextService: '2027-01-15',
-      },
-    ])
-    setForm({ model: '', id: '', driver: '' })
-    setAddOpen(false)
+        driverName: form.driver.trim(),
+      })
+      setForm({ model: '', id: '', driver: '' })
+      setAddOpen(false)
+      roster.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   function scheduleService(vehicle) {
     setNotice(`Service booked for ${vehicle.id} at the depot workshop.`)
   }
 
-  function retire(id) {
-    setVehicles((prev) => prev.filter((v) => v.id !== id))
-    setNotice(`${id} removed from the active fleet.`)
+  async function retire(id) {
+    setActionError(null)
+    try {
+      await removeVehicle(id)
+      roster.refetch()
+      setNotice(`${id} removed from the active fleet.`)
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (roster.loading && !roster.data) return <LoadingRows rows={8} />
+  if (roster.error) {
+    return <ErrorState error={roster.error} onRetry={roster.refetch} title="Could not load your vehicles" />
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Vehicles"
         description={`${vehicles.length} vehicles across the Swift Logistics fleet`}

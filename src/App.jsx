@@ -1,14 +1,22 @@
 import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import AppShell from '@/layouts/AppShell'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  OnboardingRoute,
+  PublicOnlyRoute,
+  RequireAuth,
+  RoleRoute,
+} from '@/components/auth/route-guards'
 
 // public
 const Landing = lazy(() => import('@/pages/public/Landing'))
 const Login = lazy(() => import('@/pages/public/Login'))
 const Register = lazy(() => import('@/pages/public/Register'))
 const ForgotPassword = lazy(() => import('@/pages/public/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/public/ResetPassword'))
+const AuthCallback = lazy(() => import('@/pages/public/AuthCallback'))
+const Onboarding = lazy(() => import('@/pages/public/Onboarding'))
 const Modules = lazy(() => import('@/pages/public/Features'))
 
 // driver
@@ -75,15 +83,30 @@ export default function App() {
       <Routes location={location}>
         {/* public */}
         <Route path="/" element={<Landing />} />
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route element={<PublicOnlyRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+          </Route>
         </Route>
+        {/* Recovery links land here with a session already established. */}
+        <Route element={<RequireAuth />}>
+          <Route element={<AuthLayout />}>
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Route>
+        </Route>
+        {/* Role picker for social signups, which never see the register form. */}
+        <Route element={<OnboardingRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path="/welcome" element={<Onboarding />} />
+          </Route>
+        </Route>
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/modules" element={<Modules />} />
 
         {/* driver */}
-        <Route element={<AppShell role="driver" />}>
+        <Route element={<RoleRoute role="driver" />}>
           <Route path="/driver" element={<DriverDashboard />} />
           <Route path="/driver/stations" element={<DriverStations />} />
           <Route path="/driver/stations/:id" element={<DriverStationDetails />} />
@@ -102,7 +125,7 @@ export default function App() {
         </Route>
 
         {/* fleet */}
-        <Route element={<AppShell role="fleet" />}>
+        <Route element={<RoleRoute role="fleet" />}>
           <Route path="/fleet" element={<FleetDashboard />} />
           <Route path="/fleet/vehicles" element={<FleetVehicles />} />
           <Route path="/fleet/drivers" element={<FleetDrivers />} />
@@ -112,7 +135,7 @@ export default function App() {
         </Route>
 
         {/* operator */}
-        <Route element={<AppShell role="operator" />}>
+        <Route element={<RoleRoute role="operator" />}>
           <Route path="/operator" element={<OperatorDashboard />} />
           <Route path="/operator/stations" element={<OperatorStations />} />
           <Route path="/operator/chargers" element={<OperatorChargers />} />
@@ -123,7 +146,7 @@ export default function App() {
         </Route>
 
         {/* admin */}
-        <Route element={<AppShell role="admin" />}>
+        <Route element={<RoleRoute role="admin" />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/stations" element={<AdminStations />} />

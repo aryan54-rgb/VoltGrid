@@ -11,7 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
-import { platformGrowth, revenueBySegment, sessionsByHour } from '@/data/analytics'
+import { LoadingBlock, QueryBoundary } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import {
+  fetchPlatformGrowth, fetchRevenueBySegment, fetchSessionsByHour,
+} from '@/lib/api/analytics'
 import { formatNumber } from '@/lib/utils'
 
 /** Driver acquisition funnel — an ordinal ramp of chart-1, not four categories. */
@@ -24,6 +28,13 @@ const FUNNEL = [
 
 export default function Analytics() {
   const [range, setRange] = useState('6m')
+
+  const charts = useQueries({
+    platformGrowth: fetchPlatformGrowth,
+    revenueBySegment: fetchRevenueBySegment,
+    sessionsByHour: fetchSessionsByHour,
+  })
+  const { platformGrowth = [], revenueBySegment = [], sessionsByHour = [] } = charts.data ?? {}
 
   return (
     <div className="space-y-6">
@@ -52,110 +63,122 @@ export default function Analytics() {
         <StatCard label="Average session cost" value="$14.20" delta={2.4} icon={DollarSign} index={3} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="User growth" description="Registered accounts, month over month" height={260}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={platformGrowth}>
-              <defs>
-                <linearGradient id="adminAnalyticsUsers" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
-                  <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="month" {...axisProps} />
-              <YAxis {...axisProps} width={40} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-              <RTooltip
-                content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
-                cursor={{ stroke: 'var(--chart-axis)' }}
-              />
-              <Area
-                type="monotone"
-                dataKey="users"
-                name="Users"
-                stroke={CHART_COLORS[0]}
-                strokeWidth={2}
-                fill="url(#adminAnalyticsUsers)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      <QueryBoundary
+        query={charts}
+        errorTitle="Could not load analytics"
+        loading={
+          <div className="grid gap-6 lg:grid-cols-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <LoadingBlock key={i} className="h-[318px]" />
+            ))}
+          </div>
+        }
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartCard title="User growth" description="Registered accounts, month over month" height={260}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={platformGrowth}>
+                <defs>
+                  <linearGradient id="adminAnalyticsUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
+                    <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
+                <XAxis dataKey="month" {...axisProps} />
+                <YAxis {...axisProps} width={40} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                <RTooltip
+                  content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
+                  cursor={{ stroke: 'var(--chart-axis)' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  name="Users"
+                  stroke={CHART_COLORS[0]}
+                  strokeWidth={2}
+                  fill="url(#adminAnalyticsUsers)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
 
-        <ChartCard title="Sessions per month" description="Charging sessions completed network-wide" height={260}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={platformGrowth}>
-              <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="month" {...axisProps} />
-              <YAxis {...axisProps} width={40} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-              <RTooltip
-                content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
-                cursor={{ fill: 'var(--chart-grid)' }}
-              />
-              <Bar dataKey="sessions" name="Sessions" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          <ChartCard title="Sessions per month" description="Charging sessions completed network-wide" height={260}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={platformGrowth}>
+                <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
+                <XAxis dataKey="month" {...axisProps} />
+                <YAxis {...axisProps} width={40} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                <RTooltip
+                  content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
+                  cursor={{ fill: 'var(--chart-grid)' }}
+                />
+                <Bar dataKey="sessions" name="Sessions" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
 
-        <ChartCard
-          title="Revenue by billing mode"
-          description="Prepaid drivers vs postpaid fleets, $k"
-          height={260}
-          actions={
-            <ChartLegend
-              items={[
-                { label: 'Drivers', color: CHART_COLORS[0] },
-                { label: 'Fleet', color: CHART_COLORS[1] },
-              ]}
-            />
-          }
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={revenueBySegment}>
-              <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="month" {...axisProps} />
-              <YAxis {...axisProps} width={40} tickFormatter={(v) => `$${v}k`} />
-              <RTooltip
-                content={<ChartTooltip formatter={(v) => `$${v}k`} />}
-                cursor={{ fill: 'var(--chart-grid)' }}
+          <ChartCard
+            title="Revenue by billing mode"
+            description="Prepaid drivers vs postpaid fleets, $k"
+            height={260}
+            actions={
+              <ChartLegend
+                items={[
+                  { label: 'Drivers', color: CHART_COLORS[0] },
+                  { label: 'Fleet', color: CHART_COLORS[1] },
+                ]}
               />
-              <Bar
-                dataKey="drivers"
-                name="Drivers"
-                stackId="rev"
-                fill={CHART_COLORS[0]}
-                stroke="var(--card)"
-                strokeWidth={2}
-                maxBarSize={28}
-              />
-              <Bar
-                dataKey="fleet"
-                name="Fleet"
-                stackId="rev"
-                fill={CHART_COLORS[1]}
-                stroke="var(--card)"
-                strokeWidth={2}
-                maxBarSize={28}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+            }
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueBySegment}>
+                <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
+                <XAxis dataKey="month" {...axisProps} />
+                <YAxis {...axisProps} width={40} tickFormatter={(v) => `$${v}k`} />
+                <RTooltip
+                  content={<ChartTooltip formatter={(v) => `$${v}k`} />}
+                  cursor={{ fill: 'var(--chart-grid)' }}
+                />
+                <Bar
+                  dataKey="drivers"
+                  name="Drivers"
+                  stackId="rev"
+                  fill={CHART_COLORS[0]}
+                  stroke="var(--card)"
+                  strokeWidth={2}
+                  maxBarSize={28}
+                />
+                <Bar
+                  dataKey="fleet"
+                  name="Fleet"
+                  stackId="rev"
+                  fill={CHART_COLORS[1]}
+                  stroke="var(--card)"
+                  strokeWidth={2}
+                  maxBarSize={28}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
 
-        <ChartCard title="Network sessions by hour" description="Average sessions started per hour of day" height={260}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sessionsByHour}>
-              <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="hour" {...axisProps} />
-              <YAxis {...axisProps} width={40} />
-              <RTooltip
-                content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
-                cursor={{ fill: 'var(--chart-grid)' }}
-              />
-              <Bar dataKey="sessions" name="Sessions" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+          <ChartCard title="Network sessions by hour" description="Average sessions started per hour of day" height={260}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={sessionsByHour}>
+                <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
+                <XAxis dataKey="hour" {...axisProps} />
+                <YAxis {...axisProps} width={40} />
+                <RTooltip
+                  content={<ChartTooltip formatter={(v) => formatNumber(v)} />}
+                  cursor={{ fill: 'var(--chart-grid)' }}
+                />
+                <Bar dataKey="sessions" name="Sessions" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+      </QueryBoundary>
 
       <Card>
         <CardHeader>

@@ -1,17 +1,33 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, MailCheck } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Loader2, MailCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/context/auth'
 
 export default function ForgotPassword() {
+  const { requestPasswordReset } = useAuth()
   const [sent, setSent] = useState(false)
   const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setError(null)
+    setBusy(true)
+
+    const { error: resetError } = await requestPasswordReset(email)
+    setBusy(false)
+
+    if (resetError) {
+      setError(resetError.message)
+      return
+    }
+    // Supabase deliberately succeeds whether or not the address exists, so the
+    // confirmation below stays vague about it too.
     setSent(true)
   }
 
@@ -34,6 +50,12 @@ export default function ForgotPassword() {
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+              {error && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -43,10 +65,12 @@ export default function ForgotPassword() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Send reset link
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {busy ? 'Sending…' : 'Send reset link'}
               </Button>
             </form>
 
@@ -71,9 +95,6 @@ export default function ForgotPassword() {
             <h1 className="mt-5 text-2xl font-semibold tracking-tight">Check your inbox</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               If an account exists for {email || 'that address'}, a password reset link is on its way.
-            </p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Email delivery is simulated in this prototype — no message is actually sent.
             </p>
 
             <Button variant="outline" className="mt-8 w-full" asChild>

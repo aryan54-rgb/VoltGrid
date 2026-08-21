@@ -20,7 +20,14 @@ import { StatCard } from '@/components/shared/stat-card'
 import { CHART_COLORS, GRID, axisProps, ChartTooltip, ChartCard, ChartLegend } from '@/components/shared/chart'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { fleetUtilization, fleetCostPerVehicle, fleetEnergyByWeek, costBreakdown } from '@/data/fleet'
+import { ErrorState, LoadingBlock } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import {
+  fetchCostBreakdown,
+  fetchFleetCostPerVehicle,
+  fetchFleetEnergyByWeek,
+  fetchFleetUtilization,
+} from '@/lib/api/analytics'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
 const INSIGHTS = [
@@ -43,7 +50,31 @@ const INSIGHTS = [
 
 export default function Analytics() {
   const [range, setRange] = useState('30')
+
+  const charts = useQueries({
+    utilization: fetchFleetUtilization,
+    costPerVehicle: fetchFleetCostPerVehicle,
+    energyByWeek: fetchFleetEnergyByWeek,
+    costBreakdown: fetchCostBreakdown,
+  })
+  const fleetUtilization = charts.data?.utilization ?? []
+  const fleetCostPerVehicle = charts.data?.costPerVehicle ?? []
+  const fleetEnergyByWeek = charts.data?.energyByWeek ?? []
+  const costBreakdown = charts.data?.costBreakdown ?? []
   const donutTotal = costBreakdown.reduce((s, d) => s + d.value, 0)
+
+  if (charts.loading && !charts.data) {
+    return (
+      <div className="grid gap-6 lg:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <LoadingBlock key={i} />
+        ))}
+      </div>
+    )
+  }
+  if (charts.error) {
+    return <ErrorState error={charts.error} onRetry={charts.refetch} title="Could not load fleet analytics" />
+  }
 
   return (
     <div className="space-y-6">

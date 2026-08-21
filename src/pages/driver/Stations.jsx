@@ -18,7 +18,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatCurrency } from '@/lib/utils'
-import { stations } from '@/data/stations'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { fetchStations } from '@/lib/api/stations'
 
 const STATUS_LABELS = {
   online: 'Online',
@@ -26,12 +28,6 @@ const STATUS_LABELS = {
   maintenance: 'Maintenance',
   offline: 'Offline',
 }
-
-/** Connector types actually present across the network, for the filter list. */
-const CONNECTOR_TYPES = [...new Set(stations.flatMap((s) => s.connectors.map((c) => c.type)))].sort()
-
-/** Statuses actually present across the network, for the filter list. */
-const STATUSES = [...new Set(stations.map((s) => s.status))]
 
 function availabilityOf(station) {
   return station.connectors.reduce(
@@ -102,6 +98,9 @@ function CardActions({ station, className }) {
 }
 
 export default function Stations() {
+  const { data, loading, error, refetch } = useQuery(fetchStations, [])
+  const stations = React.useMemo(() => data ?? [], [data])
+
   const [query, setQuery] = React.useState('')
   const [connector, setConnector] = React.useState('all')
   const [status, setStatus] = React.useState('all')
@@ -128,7 +127,15 @@ export default function Stations() {
       if (sortBy === 'price') return a.pricePerKwh - b.pricePerKwh
       return a.distance - b.distance
     })
-  }, [query, connector, status, sortBy])
+  }, [stations, query, connector, status, sortBy])
+
+  // The filter lists follow whatever the network actually offers, so a new
+  // connector type or station status appears without a code change.
+  const connectorTypes = React.useMemo(
+    () => [...new Set(stations.flatMap((s) => s.connectors.map((c) => c.type)))].sort(),
+    [stations]
+  )
+  const statuses = React.useMemo(() => [...new Set(stations.map((s) => s.status))], [stations])
 
   const clearFilters = () => {
     setQuery('')
@@ -178,7 +185,7 @@ export default function Stations() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All connectors</SelectItem>
-            {CONNECTOR_TYPES.map((t) => (
+            {connectorTypes.map((t) => (
               <SelectItem key={t} value={t}>
                 {t}
               </SelectItem>
@@ -192,7 +199,7 @@ export default function Stations() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Any status</SelectItem>
-            {STATUSES.map((s) => (
+            {statuses.map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABELS[s] ?? s}
               </SelectItem>
@@ -238,7 +245,11 @@ export default function Stations() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <LoadingRows rows={4} />
+      ) : error ? (
+        <ErrorState error={error} onRetry={refetch} title="Could not load stations" />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={SearchX}
           title="No stations match your filters"

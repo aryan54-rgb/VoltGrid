@@ -39,17 +39,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
-import { stations, timeSlots } from '@/data/stations'
-import { reservations, waitlistEntries } from '@/data/reservations'
-import { currentUsers } from '@/data/users'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import {
+  cancelReservation,
+  fetchBookingSlots,
+  fetchReservations,
+  fetchWaitlist,
+  leaveWaitlist as leaveWaitlistApi,
+  setWaitlistNotify,
+  updateReservation,
+} from '@/lib/api/reservations'
 
-const driver = currentUsers.driver
 const BASE_DATE = '2026-07-31'
 const SLOT_MINUTES = 30
-
-function stationName(stationId) {
-  return stations.find((s) => s.id === stationId)?.name ?? stationId
-}
 
 function dateOptions(baseIso, count) {
   const [y, m, d] = baseIso.split('-').map(Number)
@@ -61,6 +65,13 @@ function dateOptions(baseIso, count) {
     )
   }
   return out
+}
+
+/** `'09:00'` + 30 → `'09:30'`. The 24h form Postgres stores times in. */
+function addMinutes24(hhmm, minutes) {
+  const [hh, mm] = hhmm.split(':').map(Number)
+  const total = (hh * 60 + mm + minutes) % (24 * 60)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
 function addMinutes(slot, minutes) {
@@ -92,7 +103,7 @@ function ReservationCard({ reservation, index, onModify, onCancel }) {
             </div>
             <p className="flex items-center gap-1.5 text-sm font-medium">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              {stationName(reservation.stationId)}
+              {reservation.stationName}
             </p>
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -133,16 +144,26 @@ function ReservationCard({ reservation, index, onModify, onCancel }) {
 }
 
 export default function Reservations() {
-  const [rows, setRows] = React.useState(() =>
-    reservations.filter((r) => r.userId === driver.id)
+  const { profile } = useAuth()
+
+  // RLS returns this account's bookings plus the demo persona's, so there is
+  // nothing to filter by user id on the client.
+  const query = useQueries({
+    reservations: fetchReservations,
+    waitlist: fetchWaitlist,
+    slots: fetchBookingSlots,
+  })
+  const rows = React.useMemo(() => query.data?.reservations ?? [], [query.data])
+  const waitlist = React.useMemo(() => query.data?.waitlist ?? [], [query.data])
+  const timeSlots = React.useMemo(
+    () => (query.data?.slots ?? []).map((s) => ({ id: s.id, time: s.label, startTime: s.start_time })),
+    [query.data]
   )
-  const [waitlist, setWaitlist] = React.useState(() =>
-    waitlistEntries.filter((w) => w.userId === driver.id)
-  )
+
   const [modifyTarget, setModifyTarget] = React.useState(null)
   const [cancelTarget, setCancelTarget] = React.useState(null)
   const [draftDate, setDraftDate] = React.useState(BASE_DATE)
-  const [draftTime, setDraftTime] = React.useState(timeSlots[0].time)
+  const [draftTime, setDraftTime] = React.useState('')
   const [notice, setNotice] = React.useState('')
 
   React.useEffect(() => {
@@ -153,7 +174,7 @@ export default function Reservations() {
 
   const dates = React.useMemo(() => dateOptions(BASE_DATE, 7), [])
 
-  const upcoming = rows.filter((r) => r.status === 'RESERVED')
+  const upcoming = rows.filter((r) => r.status === 'RESERVED' || r.status === 'PENDING')
   const active = rows.filter((r) => r.status === 'ACTIVE')
   const past = rows.filter((r) => r.status === 'EXPIRED' || r.status === 'CANCELLED')
 
@@ -163,44 +184,72 @@ export default function Reservations() {
     setModifyTarget(r)
   }
 
-  const saveModify = () => {
+  // Every mutation below writes first and re-reads after, so what the page shows
+  // is what the database accepted rather than what the click assumed.
+  const saveModify = async () => {
     if (!modifyTarget) return
     const id = modifyTarget.id
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? { ...r, date: draftDate, startTime: draftTime, endTime: addMinutes(draftTime, SLOT_MINUTES) }
-          : r
-      )
-    )
+    const slot = timeSlots.find((t) => t.time === draftTime)
     setModifyTarget(null)
-    setNotice(`${id} moved to ${formatDate(draftDate)} at ${draftTime}.`)
+    try {
+      await updateReservation(id, {
+        date: draftDate,
+        startTime: slot?.startTime ?? draftTime,
+        endTime: addMinutes24(slot?.startTime ?? draftTime, SLOT_MINUTES),
+      })
+      query.refetch()
+      setNotice(`${id} moved to ${formatDate(draftDate)} at ${draftTime}.`)
+    } catch (err) {
+      setNotice(`${id} could not be moved — ${err.message}`)
+    }
   }
 
-  const confirmCancel = () => {
+  const confirmCancel = async () => {
     if (!cancelTarget) return
     const id = cancelTarget.id
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'CANCELLED' } : r)))
     setCancelTarget(null)
-    setNotice(`${id} cancelled — the bay has been released.`)
+    try {
+      await cancelReservation(id)
+      query.refetch()
+      setNotice(`${id} cancelled — the bay has been released.`)
+    } catch (err) {
+      setNotice(`${id} could not be cancelled — ${err.message}`)
+    }
   }
 
-  const toggleNotify = (id) => {
-    setWaitlist((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, notifyOnFree: !w.notifyOnFree } : w))
+  const toggleNotify = async (id) => {
+    const entry = waitlist.find((w) => w.id === id)
+    if (!entry) return
+    try {
+      await setWaitlistNotify(id, !entry.notifyOnFree)
+      query.refetch()
+    } catch (err) {
+      setNotice(`Could not change notifications — ${err.message}`)
+    }
+  }
+
+  const leaveWaitlist = async (id) => {
+    try {
+      await leaveWaitlistApi(id)
+      query.refetch()
+      setNotice(`${id} — you have left the waitlist.`)
+    } catch (err) {
+      setNotice(`Could not leave the queue — ${err.message}`)
+    }
+  }
+
+  if (query.loading && !query.data) return <LoadingRows rows={7} />
+  if (query.error) {
+    return (
+      <ErrorState error={query.error} onRetry={query.refetch} title="Could not load your reservations" />
     )
-  }
-
-  const leaveWaitlist = (id) => {
-    setWaitlist((prev) => prev.filter((w) => w.id !== id))
-    setNotice(`${id} — you have left the waitlist.`)
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="My reservations"
-        description={`Slot reservations for ${driver.name} — modify, cancel or track your waitlist.`}
+        description={`Slot reservations for ${profile?.name ?? 'you'} — modify, cancel or track your waitlist.`}
         actions={
           <Button asChild size="sm">
             <Link to="/driver/stations">Book another slot</Link>
@@ -329,7 +378,7 @@ export default function Reservations() {
                         <span className="font-mono text-xs text-muted-foreground">{w.id}</span>
                         <Badge variant="warning">Position #{w.position}</Badge>
                       </div>
-                      <p className="text-sm font-medium">{stationName(w.stationId)}</p>
+                      <p className="text-sm font-medium">{w.stationName}</p>
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                         <span>{formatDate(w.date)}</span>
                         <span>·</span>
@@ -372,7 +421,7 @@ export default function Reservations() {
             <DialogTitle>Modify reservation</DialogTitle>
             <DialogDescription>
               {modifyTarget
-                ? `${modifyTarget.id} · ${stationName(modifyTarget.stationId)} · Bay ${modifyTarget.connectorLabel}`
+                ? `${modifyTarget.id} · ${modifyTarget.stationName} · Bay ${modifyTarget.connectorLabel}`
                 : ''}
             </DialogDescription>
           </DialogHeader>
@@ -427,7 +476,7 @@ export default function Reservations() {
             <DialogTitle>Cancel this reservation?</DialogTitle>
             <DialogDescription>
               {cancelTarget
-                ? `${cancelTarget.id} at ${stationName(cancelTarget.stationId)} on ${formatDate(
+                ? `${cancelTarget.id} at ${cancelTarget.stationName} on ${formatDate(
                     cancelTarget.date
                   )}, ${cancelTarget.startTime} – ${cancelTarget.endTime}. The bay is released back to the pool and the first driver on the waitlist is promoted.`
                 : ''}

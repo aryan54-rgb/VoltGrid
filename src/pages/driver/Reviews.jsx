@@ -27,19 +27,15 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { reviews as seedReviews, ratingBreakdown } from '@/data/reviews'
-import { stations } from '@/data/stations'
-import { currentUsers } from '@/data/users'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { createReview, fetchReviews, ratingBreakdown, toggleHelpful as toggleHelpfulApi } from '@/lib/api/reviews'
+import { fetchStations } from '@/lib/api/stations'
 import { cn, formatDate, initials } from '@/lib/utils'
 
-const ME = currentUsers.driver.name
-
-function stationName(stationId) {
+function stationNameIn(stations, stationId) {
   return stations.find((s) => s.id === stationId)?.name ?? 'Unknown station'
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
 }
 
 /** Read-only star row. */
@@ -98,12 +94,20 @@ const SORTS = [
 ]
 
 export default function Reviews() {
-  const [items, setItems] = useState(seedReviews)
+  const { user, profile } = useAuth()
+  const query = useQueries({
+    reviews: () => fetchReviews(),
+    stations: fetchStations,
+  })
+  const items = useMemo(() => query.data?.reviews ?? [], [query.data])
+  const stations = useMemo(() => query.data?.stations ?? [], [query.data])
+  const stationName = (stationId) => stationNameIn(stations, stationId)
+
   const [tab, setTab] = useState('all')
   const [stationFilter, setStationFilter] = useState('all')
   const [ratingFilter, setRatingFilter] = useState('all')
   const [sort, setSort] = useState('recent')
-  const [helpfulVotes, setHelpfulVotes] = useState({})
+  const [actionError, setActionError] = useState(null)
 
   const [open, setOpen] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -117,24 +121,37 @@ export default function Reviews() {
   const breakdown = useMemo(() => ratingBreakdown(items), [items])
 
   const visible = useMemo(() => {
-    let list = tab === 'mine' ? items.filter((r) => r.author === ME) : items
+    // "Mine" is decided by author id, not by a name match — two drivers can
+    // share a display name.
+    let list = tab === 'mine' ? items.filter((r) => r.authorId && r.authorId === user?.id) : items
     if (stationFilter !== 'all') list = list.filter((r) => r.stationId === stationFilter)
     if (ratingFilter !== 'all') list = list.filter((r) => r.rating === Number(ratingFilter))
 
     const sorted = [...list]
     if (sort === 'highest') sorted.sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date))
-    else if (sort === 'helpful')
-      sorted.sort((a, b) => helpfulCount(b) - helpfulCount(a))
+    else if (sort === 'helpful') sorted.sort((a, b) => b.helpful - a.helpful)
     else sorted.sort((a, b) => b.date.localeCompare(a.date))
     return sorted
+  }, [items, tab, stationFilter, ratingFilter, sort, user?.id])
 
-    function helpfulCount(r) {
-      return r.helpful + (helpfulVotes[r.id] ? 1 : 0)
+  // The vote is a row in review_votes; the count on screen moves straight away
+  // and is reconciled from the view on the next read.
+  async function toggleHelpful(id) {
+    if (!user) return
+    const review = items.find((r) => r.id === id)
+    if (!review) return
+    query.setData((prev) => ({
+      ...prev,
+      reviews: (prev?.reviews ?? []).map((r) =>
+        r.id === id ? { ...r, voted: !r.voted, helpful: r.helpful + (r.voted ? -1 : 1) } : r
+      ),
+    }))
+    try {
+      await toggleHelpfulApi(id, user.id, review.voted)
+    } catch (err) {
+      setActionError(err)
+      query.refetch()
     }
-  }, [items, tab, stationFilter, ratingFilter, sort, helpfulVotes])
-
-  function toggleHelpful(id) {
-    setHelpfulVotes((v) => ({ ...v, [id]: !v[id] }))
   }
 
   function openDialog() {
@@ -143,27 +160,38 @@ export default function Reviews() {
     setOpen(true)
   }
 
-  function submitReview() {
-    const review = {
-      id: `RV-${Math.floor(Math.random() * 200) + 720}`,
-      stationId: draft.stationId,
-      author: ME,
-      rating: draft.rating,
-      date: todayIso(),
-      title: draft.title.trim() || 'Review',
-      body: draft.body.trim(),
-      helpful: 0,
-      verifiedSession: true,
+  async function submitReview() {
+    if (!user) return
+    setActionError(null)
+    try {
+      // `verifiedSession` is decided from the caller's completed sessions at
+      // that station, not from anything this form sends.
+      await createReview({
+        userId: user.id,
+        authorName: profile?.name ?? 'Driver',
+        stationId: draft.stationId,
+        rating: draft.rating,
+        title: draft.title.trim() || 'Review',
+        body: draft.body.trim(),
+      })
+      setSubmitted(true)
+      query.refetch()
+      setTimeout(() => setOpen(false), 1400)
+    } catch (err) {
+      setActionError(err)
     }
-    setItems((list) => [review, ...list])
-    setSubmitted(true)
-    setTimeout(() => setOpen(false), 1400)
   }
 
   const canSubmit = draft.stationId && draft.rating > 0 && draft.body.trim().length > 0
 
+  if (query.loading && !query.data) return <LoadingRows rows={6} />
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load reviews" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That did not go through" />}
       <PageHeader
         title="Reviews & ratings"
         description="Rate the stations you have charged at and read what other drivers found."
@@ -279,7 +307,7 @@ export default function Reviews() {
       ) : (
         <div className="space-y-3">
           {visible.map((r, i) => {
-            const voted = !!helpfulVotes[r.id]
+            const voted = r.voted
             return (
               <motion.div
                 key={r.id}

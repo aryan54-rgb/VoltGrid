@@ -36,7 +36,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { revenueByDay, revenueByStation } from '@/data/analytics'
+import { ErrorState, LoadingBlock, LoadingCards } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchRevenueByDay, fetchRevenueByStation } from '@/lib/api/analytics'
 
 const RANGES = [
   { value: '7', label: 'Last 7 days' },
@@ -72,7 +74,26 @@ function PayoutRow({ label, sub, amount, children }) {
 export default function Revenue() {
   const [range, setRange] = React.useState('14')
 
+  const charts = useQueries({
+    byDay: fetchRevenueByDay,
+    byStation: fetchRevenueByStation,
+  })
+  const revenueByDay = charts.data?.byDay ?? []
+  const revenueByStation = charts.data?.byStation ?? []
+
   const topStation = revenueByStation.find((s) => s.station === TOP_STATION) ?? revenueByStation[0]
+
+  if (charts.loading && !charts.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingBlock />
+      </div>
+    )
+  }
+  if (charts.error) {
+    return <ErrorState error={charts.error} onRetry={charts.refetch} title="Could not load revenue" />
+  }
 
   return (
     <div className="space-y-6">

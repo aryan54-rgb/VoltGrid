@@ -26,7 +26,16 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { fleetDrivers, fleetVehicles } from '@/data/fleet'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import {
+  assignVehicle as assignVehicleApi,
+  createFleetDriver,
+  fetchFleetDrivers,
+  fetchVehicles,
+  updateFleetDriver,
+} from '@/lib/api/fleet'
 import { cn, initials } from '@/lib/utils'
 
 const SHIFTS = ['Morning', 'Evening', 'Night', 'Relief']
@@ -34,7 +43,12 @@ const STATUSES = ['ON_DUTY', 'OFF_DUTY', 'ON_LEAVE']
 const STATUS_LABELS = { ON_DUTY: 'On duty', OFF_DUTY: 'Off duty', ON_LEAVE: 'On leave' }
 
 export default function Drivers() {
-  const [drivers, setDrivers] = useState(fleetDrivers)
+  const { profile } = useAuth()
+  const roster = useQueries({ drivers: fetchFleetDrivers, vehicles: fetchVehicles })
+  const drivers = useMemo(() => roster.data?.drivers ?? [], [roster.data])
+  const fleetVehicles = useMemo(() => roster.data?.vehicles ?? [], [roster.data])
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [shiftFilter, setShiftFilter] = useState('all')
@@ -54,7 +68,7 @@ export default function Drivers() {
   const freeVehicles = useMemo(() => {
     const taken = new Set(drivers.map((d) => d.assignedVehicle).filter(Boolean))
     return fleetVehicles.filter((v) => v.driverId === null && !taken.has(v.id))
-  }, [drivers])
+  }, [drivers, fleetVehicles])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -66,47 +80,70 @@ export default function Drivers() {
     })
   }, [drivers, query, statusFilter, shiftFilter])
 
-  function addDriver() {
+  async function addDriver() {
     if (!form.name.trim() || !form.email.trim()) return
-    setDrivers((prev) => [
-      ...prev,
-      {
-        id: `fd-${String(prev.length + 1).padStart(2, '0')}`,
+    setActionError(null)
+    try {
+      await createFleetDriver({
+        company: profile?.company ?? 'Swift Logistics',
         name: form.name.trim(),
         email: form.email.trim(),
-        licence: form.licence.trim() || '—',
-        assignedVehicle: null,
+        licence: form.licence.trim(),
         shift: form.shift,
-        status: 'OFF_DUTY',
-        sessionsThisMonth: 0,
-        energyKwh: 0,
-        safetyScore: 100,
-      },
-    ])
-    setForm({ name: '', email: '', licence: '', shift: 'Morning' })
-    setAddOpen(false)
+      })
+      setForm({ name: '', email: '', licence: '', shift: 'Morning' })
+      setAddOpen(false)
+      roster.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function confirmAssign() {
+  async function confirmAssign() {
     if (!assignVehicle) return
-    setDrivers((prev) =>
-      prev.map((d) => (d.id === assignDriver.id ? { ...d, assignedVehicle: assignVehicle } : d))
-    )
+    const driver = assignDriver
     setAssignDriver(null)
     setAssignVehicle('')
+    setActionError(null)
+    try {
+      // Writes both sides — the driver's assignment and the van's occupant.
+      await assignVehicleApi(driver.id, driver.name, assignVehicle)
+      roster.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function confirmShift() {
-    setDrivers((prev) => prev.map((d) => (d.id === shiftDriver.id ? { ...d, shift: shiftValue } : d)))
+  async function confirmShift() {
+    const id = shiftDriver.id
     setShiftDriver(null)
+    setActionError(null)
+    try {
+      await updateFleetDriver(id, { shift: shiftValue })
+      roster.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function deactivate(id) {
-    setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'OFF_DUTY' } : d)))
+  async function deactivate(id) {
+    setActionError(null)
+    try {
+      await updateFleetDriver(id, { status: 'OFF_DUTY' })
+      roster.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  if (roster.loading && !roster.data) return <LoadingRows rows={8} />
+  if (roster.error) {
+    return <ErrorState error={roster.error} onRetry={roster.refetch} title="Could not load your drivers" />
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Drivers"
         description="Manage the drivers assigned to your fleet vehicles"

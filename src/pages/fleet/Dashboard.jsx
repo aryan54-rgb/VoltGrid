@@ -21,7 +21,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { fleetVehicles, fleetEnergyByWeek } from '@/data/fleet'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchVehicles } from '@/lib/api/fleet'
+import { fetchFleetEnergyByWeek } from '@/lib/api/analytics'
 import { cn, formatNumber } from '@/lib/utils'
 
 const STATUS_ORDER = ['active', 'charging', 'idle', 'maintenance']
@@ -33,9 +36,15 @@ const STATUS_LABELS = {
 }
 
 export default function Dashboard() {
-  const avgSoc = Math.round(fleetVehicles.reduce((s, v) => s + v.soc, 0) / fleetVehicles.length)
+  const query = useQueries({ vehicles: fetchVehicles, energy: fetchFleetEnergyByWeek })
+  const fleetVehicles = query.data?.vehicles ?? []
+  const fleetEnergyByWeek = query.data?.energy ?? []
+
+  const avgSoc = fleetVehicles.length
+    ? Math.round(fleetVehicles.reduce((s, v) => s + v.soc, 0) / fleetVehicles.length)
+    : 0
   const lastWeek = fleetEnergyByWeek[fleetEnergyByWeek.length - 1]
-  const weekEnergy = lastWeek.depot + lastWeek.public
+  const weekEnergy = lastWeek ? lastWeek.depot + lastWeek.public : 0
 
   const statusData = STATUS_ORDER.map((status, i) => ({
     name: STATUS_LABELS[status],
@@ -45,6 +54,18 @@ export default function Dashboard() {
 
   const attention = fleetVehicles.filter((v) => v.soc < 20 || v.status === 'maintenance')
   const snapshot = fleetVehicles.slice(0, 5)
+
+  if (query.loading && !query.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={6} />
+      </div>
+    )
+  }
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load your fleet" />
+  }
 
   return (
     <div className="space-y-6">

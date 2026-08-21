@@ -20,9 +20,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatCurrency } from '@/lib/utils'
-import { stations, chargers } from '@/data/stations'
-import { revenueByDay, sessionsByHour } from '@/data/analytics'
+import { formatCurrency, formatNumber } from '@/lib/utils'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchConnectors, fetchStations } from '@/lib/api/stations'
+import { fetchRevenueByDay, fetchSessionsByHour } from '@/lib/api/analytics'
 
 const ALERTS = [
   {
@@ -56,7 +58,37 @@ const ALERTS = [
 ]
 
 export default function Dashboard() {
-  const faultedChargers = chargers.filter((c) => c.status === 'faulted').length
+  const query = useQueries({
+    stations: fetchStations,
+    connectors: fetchConnectors,
+    revenueByDay: fetchRevenueByDay,
+    sessionsByHour: fetchSessionsByHour,
+  })
+  const stations = query.data?.stations ?? []
+  const connectors = query.data?.connectors ?? []
+  const revenueByDay = query.data?.revenueByDay ?? []
+  const sessionsByHour = query.data?.sessionsByHour ?? []
+
+  const faultedChargers = connectors.filter((c) => c.status === 'FAULTED').length
+
+  // Uptime is the mean of what the bays themselves report, not a fixed figure.
+  const uptime = connectors.length
+    ? connectors.reduce((sum, c) => sum + c.uptimePct, 0) / connectors.length
+    : 0
+
+  const latestDay = revenueByDay[revenueByDay.length - 1]
+
+  if (query.loading && !query.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={6} />
+      </div>
+    )
+  }
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load the dashboard" />
+  }
 
   return (
     <div className="space-y-6">
@@ -68,15 +100,15 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Revenue today"
-          value="$4,812"
+          value={latestDay ? formatCurrency(latestDay.revenue) : '—'}
           delta={6.2}
           deltaLabel="vs yesterday"
           icon={DollarSign}
           index={0}
         />
         <StatCard
-          label="Active sessions"
-          value="34"
+          label="Sessions today"
+          value={latestDay ? formatNumber(latestDay.sessions) : '—'}
           delta={3.4}
           deltaLabel="vs yesterday"
           icon={Zap}
@@ -84,7 +116,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Network uptime"
-          value="98.2%"
+          value={`${uptime.toFixed(1)}%`}
           delta={0.4}
           deltaLabel="vs last week"
           icon={Activity}

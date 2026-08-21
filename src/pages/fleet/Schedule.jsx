@@ -35,7 +35,17 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { chargingSchedule, depotPowerLimitKw, fleetVehicles } from '@/data/fleet'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import {
+  createScheduleEntries,
+  fetchChargingSchedule,
+  fetchDepotPowerLimit,
+  fetchVehicles,
+  updateScheduleEntry,
+  updateScheduleStatus,
+} from '@/lib/api/fleet'
 import { cn } from '@/lib/utils'
 
 const NIGHTS = ['2026-07-30', '2026-07-31']
@@ -75,8 +85,18 @@ function pad2(n) {
 }
 
 export default function Schedule() {
+  const { profile } = useAuth()
+  const board = useQueries({
+    schedule: fetchChargingSchedule,
+    vehicles: fetchVehicles,
+    limit: fetchDepotPowerLimit,
+  })
+  const rows = useMemo(() => board.data?.schedule ?? [], [board.data])
+  const fleetVehicles = useMemo(() => board.data?.vehicles ?? [], [board.data])
+  const depotPowerLimitKw = board.data?.limit ?? 300
+
+  const [actionError, setActionError] = useState(null)
   const [night, setNight] = useState(NIGHTS[0])
-  const [rows, setRows] = useState(chargingSchedule)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [picked, setPicked] = useState({})
   const [targetSoc, setTargetSoc] = useState('90')
@@ -92,7 +112,7 @@ export default function Schedule() {
   /** Vehicles worth scheduling tonight: idle at the depot or running low. */
   const candidates = useMemo(
     () => fleetVehicles.filter((v) => v.status !== 'maintenance' && (v.status === 'idle' || v.soc < 40)),
-    []
+    [fleetVehicles]
   )
 
   /** Concurrent depot draw per hour, assuming 60 kW per charging vehicle. */
@@ -112,53 +132,78 @@ export default function Schedule() {
 
   const pickedIds = Object.keys(picked).filter((id) => picked[id])
 
-  function confirmBulk() {
+  async function confirmBulk() {
     if (pickedIds.length === 0) return
     const baseOffset = toOffset(windowStart)
+    // Vans are staggered by one slot each and spread round-robin across the
+    // bays, which is what keeps the concurrent draw under the site limit.
     const additions = pickedIds.map((vehicleId, i) => {
       const start = baseOffset + i * SLOT_MINUTES
       return {
-        id: `SCH-B${Date.now().toString().slice(-4)}-${i}`,
+        id: `SCH-B${Date.now().toString(36).toUpperCase()}-${i}`,
+        company: profile?.company ?? 'Swift Logistics',
         vehicleId,
         connectorLabel: BAYS[i % BAYS.length],
         start: fromOffset(start),
         end: fromOffset(start + DEFAULT_DURATION),
         targetSocPct: Number(targetSoc),
-        status: 'SCHEDULED',
         night,
       }
     })
-    setRows((prev) => [...prev, ...additions])
-    const bays = new Set(additions.map((a) => a.connectorLabel)).size
-    setResult(
-      `${additions.length} vehicle${additions.length === 1 ? '' : 's'} scheduled across ${bays} bay${bays === 1 ? '' : 's'}`
-    )
+    setActionError(null)
     setPicked({})
     setBulkOpen(false)
+    try {
+      await createScheduleEntries(additions)
+      board.refetch()
+      const bays = new Set(additions.map((a) => a.connectorLabel)).size
+      setResult(
+        `${additions.length} vehicle${additions.length === 1 ? '' : 's'} scheduled across ${bays} bay${bays === 1 ? '' : 's'}`
+      )
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     const s = span(editRow)
     const duration = Math.max(30, s.end - s.start)
     const start = toOffset(editStart)
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === editRow.id
-          ? { ...r, start: fromOffset(start), end: fromOffset(start + duration), targetSocPct: Number(editTarget) }
-          : r
-      )
-    )
+    const id = editRow.id
     setEditRow(null)
+    setActionError(null)
+    try {
+      await updateScheduleEntry(id, {
+        start: fromOffset(start),
+        end: fromOffset(start + duration),
+        targetSocPct: Number(editTarget),
+      })
+      board.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function cancelRow(id) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'CANCELLED' } : r)))
+  async function cancelRow(id) {
+    setActionError(null)
+    try {
+      await updateScheduleStatus(id, 'CANCELLED')
+      board.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   const peak = load.reduce((m, d) => Math.max(m, d.kw), 0)
 
+  if (board.loading && !board.data) return <LoadingRows rows={8} />
+  if (board.error) {
+    return <ErrorState error={board.error} onRetry={board.refetch} title="Could not load the depot schedule" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Depot charging schedule"
         description="Bulk-schedule overnight charging across the depot's four bays"

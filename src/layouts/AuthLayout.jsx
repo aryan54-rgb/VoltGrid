@@ -44,7 +44,7 @@ export default function AuthLayout() {
             ))}
           </ul>
         </motion.div>
-        <p className="relative text-xs text-emerald-100/60">© 2026 VoltGrid Inc. All mock data — demo environment.</p>
+        <p className="relative text-xs text-emerald-100/60">© 2026 VoltGrid Inc. Demo environment.</p>
       </div>
 
       {/* form panel */}

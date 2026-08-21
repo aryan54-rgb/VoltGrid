@@ -3,7 +3,6 @@ import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
-  Check,
   ChevronsUpDown,
   LogOut,
   Menu,
@@ -27,9 +26,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SearchInput } from '@/components/shared/search-input'
 import { useTheme } from '@/context/theme'
+import { useAuth } from '@/context/auth'
 import { NAV, ROLE_META } from '@/lib/nav'
-import { currentUsers } from '@/data/users'
-import { notifications as allNotifications } from '@/data/notifications'
+import { fetchNotifications } from '@/lib/api/notifications'
+import { useQuery } from '@/hooks/use-query'
 import { cn, initials, timeAgo } from '@/lib/utils'
 
 function VoltGridLogo({ className }) {
@@ -75,9 +75,8 @@ function SidebarNav({ role, onNavigate }) {
   )
 }
 
-function RoleSwitcher({ role }) {
+function AccountMenu({ role, user, onSignOut }) {
   const navigate = useNavigate()
-  const user = currentUsers[role]
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -96,15 +95,18 @@ function RoleSwitcher({ role }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="w-60">
-        <DropdownMenuLabel>Switch workspace</DropdownMenuLabel>
-        {Object.entries(ROLE_META).map(([key, meta]) => (
-          <DropdownMenuItem key={key} onClick={() => navigate(meta.home)}>
-            <span className="flex-1">{meta.label}</span>
-            {key === role && <Check className="!text-primary" />}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuLabel>
+          <span className="block">{user.name}</span>
+          <span className="block truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate('/login')}>
+        {role === 'driver' && (
+          <DropdownMenuItem onClick={() => navigate('/driver/profile')}>
+            <UserCircle />
+            Profile
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onSignOut}>
           <LogOut />
           Sign out
         </DropdownMenuItem>
@@ -115,7 +117,10 @@ function RoleSwitcher({ role }) {
 
 function NotificationsMenu({ role }) {
   const navigate = useNavigate()
-  const items = allNotifications.filter((n) => n.roles.includes(role)).slice(0, 5)
+  // RLS already limits the rows to this role's broadcasts and the caller's own,
+  // so the bell shows the newest five of whatever comes back.
+  const { data, loading, error } = useQuery(fetchNotifications, [])
+  const items = (data ?? []).slice(0, 5)
   const unread = items.filter((n) => !n.read).length
   return (
     <DropdownMenu>
@@ -133,6 +138,15 @@ function NotificationsMenu({ role }) {
           {unread > 0 && <Badge variant="secondary">{unread} new</Badge>}
         </div>
         <DropdownMenuSeparator />
+        {loading && <p className="px-2 py-6 text-center text-sm text-muted-foreground">Loading…</p>}
+        {error && (
+          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+            Notifications are unavailable right now.
+          </p>
+        )}
+        {!loading && !error && items.length === 0 && (
+          <p className="px-2 py-6 text-center text-sm text-muted-foreground">You are all caught up.</p>
+        )}
         {items.map((n) => (
           <DropdownMenuItem
             key={n.id}
@@ -164,12 +178,22 @@ function NotificationsMenu({ role }) {
 
 export default function AppShell({ role }) {
   const { theme, setTheme } = useTheme()
+  const { profile, user: authUser, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const user = currentUsers[role]
+
+  const user = {
+    name: profile?.name || authUser?.email?.split('@')[0] || 'VoltGrid user',
+    email: profile?.email || authUser?.email || '',
+  }
 
   React.useEffect(() => setMobileOpen(false), [location.pathname])
+
+  const handleSignOut = React.useCallback(async () => {
+    await signOut()
+    navigate('/login', { replace: true })
+  }, [signOut, navigate])
 
   return (
     <div className="flex min-h-screen">
@@ -180,7 +204,7 @@ export default function AppShell({ role }) {
         </div>
         <SidebarNav role={role} />
         <div className="border-t border-sidebar-border p-3">
-          <RoleSwitcher role={role} />
+          <AccountMenu role={role} user={user} onSignOut={handleSignOut} />
         </div>
       </aside>
 
@@ -210,7 +234,7 @@ export default function AppShell({ role }) {
               </div>
               <SidebarNav role={role} onNavigate={() => setMobileOpen(false)} />
               <div className="border-t border-sidebar-border p-3">
-                <RoleSwitcher role={role} />
+                <AccountMenu role={role} user={user} onSignOut={handleSignOut} />
               </div>
             </motion.aside>
           </>
@@ -256,7 +280,7 @@ export default function AppShell({ role }) {
                     Profile
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigate('/login')}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut />
                   Sign out
                 </DropdownMenuItem>

@@ -15,57 +15,90 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { posts as seedPosts, leaderboard } from '@/data/community'
-import { currentUsers } from '@/data/users'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { createPost, fetchLeaderboard, fetchPosts, toggleLike as toggleLikeApi } from '@/lib/api/community'
 import { cn, formatNumber, timeAgo, initials } from '@/lib/utils'
 
-const ME = currentUsers.driver.name
-
-/** Topics come from the feed itself, so a new topic shows up as soon as someone posts it. */
-const TAGS = ['All', ...new Set(seedPosts.map((p) => p.tag))]
-const TAG_OPTIONS = TAGS.filter((t) => t !== 'All')
+/** Fallback topics for the composer before the feed has loaded. */
+const DEFAULT_TAGS = ['Tips', 'Station report', 'Question', 'Road trip', 'Announcement']
 
 export default function Community() {
-  const [posts, setPosts] = useState(seedPosts)
+  const { user, profile } = useAuth()
+  const feed = useQueries(
+    {
+      posts: fetchPosts,
+      leaderboard: () => fetchLeaderboard({ currentUserId: user?.id ?? null }),
+    },
+    [user?.id]
+  )
+  const posts = useMemo(() => feed.data?.posts ?? [], [feed.data])
+  const leaderboard = feed.data?.leaderboard ?? []
+
   const [tag, setTag] = useState('All')
   const [draft, setDraft] = useState('')
-  const [draftTag, setDraftTag] = useState(TAG_OPTIONS[0])
+  const [draftTag, setDraftTag] = useState(DEFAULT_TAGS[0])
+  const [actionError, setActionError] = useState(null)
+
+  // Topics come from the feed itself, so a new topic shows up as soon as
+  // someone posts it.
+  const tagOptions = useMemo(() => {
+    const fromFeed = [...new Set(posts.map((p) => p.tag))]
+    return fromFeed.length ? fromFeed : DEFAULT_TAGS
+  }, [posts])
+  const TAGS = useMemo(() => ['All', ...tagOptions], [tagOptions])
 
   const visible = useMemo(
     () => (tag === 'All' ? posts : posts.filter((p) => p.tag === tag)),
     [posts, tag]
   )
 
-  function publish() {
+  async function publish() {
     const text = draft.trim()
-    if (!text) return
+    if (!text || !user) return
     const [title, ...rest] = text.split('\n')
-    setPosts((prev) => [
-      {
-        id: `po-${Date.now()}`,
-        author: ME,
-        handle: '@jordanlee',
-        avatarColor: 'bg-emerald-500',
-        time: new Date().toISOString(),
+    setDraft('')
+    setActionError(null)
+    try {
+      await createPost({
+        userId: user.id,
+        authorName: profile?.name ?? 'Driver',
+        handle: profile?.handle,
+        avatarColor: profile?.avatar_color,
         tag: draftTag,
         title: title.slice(0, 90),
         body: rest.join('\n').trim(),
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        liked: false,
-      },
-      ...prev,
-    ])
-    setDraft('')
+      })
+      feed.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
-  function toggleLike(id) {
-    setPosts((prev) =>
-      prev.map((p) =>
+  // Optimistic: the like lands in post_likes, and the view recomputes the count
+  // on the next read. Rolling back on failure keeps the two in step.
+  async function toggleLike(id) {
+    if (!user) return
+    const post = posts.find((p) => p.id === id)
+    if (!post) return
+    feed.setData((prev) => ({
+      ...prev,
+      posts: (prev?.posts ?? []).map((p) =>
         p.id === id ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p
-      )
-    )
+      ),
+    }))
+    try {
+      await toggleLikeApi(id, user.id, post.liked)
+    } catch (err) {
+      setActionError(err)
+      feed.refetch()
+    }
+  }
+
+  if (feed.loading && !feed.data) return <LoadingRows rows={6} />
+  if (feed.error) {
+    return <ErrorState error={feed.error} onRetry={feed.refetch} title="Could not load the community feed" />
   }
 
   return (
@@ -75,13 +108,15 @@ export default function Community() {
         description="Tips, station reports and road-trip notes from drivers on the network."
       />
 
+      {actionError && <ErrorState error={actionError} title="That did not go through" />}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {/* Composer */}
           <Card>
             <CardContent className="flex gap-3 p-5">
               <Avatar className="mt-0.5">
-                <AvatarFallback>{initials(ME)}</AvatarFallback>
+                <AvatarFallback>{initials(profile?.name ?? 'You')}</AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-3">
                 <Textarea
@@ -95,7 +130,7 @@ export default function Community() {
                       <SelectValue placeholder="Topic" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TAG_OPTIONS.map((t) => (
+                      {tagOptions.map((t) => (
                         <SelectItem key={t} value={t}>
                           {t}
                         </SelectItem>
@@ -241,7 +276,7 @@ export default function Community() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
-              {TAG_OPTIONS.map((t) => (
+              {tagOptions.map((t) => (
                 <Badge
                   key={t}
                   variant="secondary"

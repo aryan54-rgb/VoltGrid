@@ -30,7 +30,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { cn, formatCurrency, formatDate, initials } from '@/lib/utils'
-import { stations } from '@/data/stations'
+import { EmptyState } from '@/components/shared/empty-state'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchStation } from '@/lib/api/stations'
+import { fetchReviews } from '@/lib/api/reviews'
 
 /** Hourly utilization, 6am–10pm. */
 const UTILIZATION_TODAY = [
@@ -51,30 +55,6 @@ const UTILIZATION_TODAY = [
   { hour: '8 PM', utilization: 52 },
   { hour: '9 PM', utilization: 37 },
   { hour: '10 PM', utilization: 22 },
-]
-
-const STATION_REVIEWS = [
-  {
-    id: 'rv-1',
-    author: 'Maya Chen',
-    rating: 5,
-    date: '2026-07-26',
-    body: 'Pulled in at 8% and was back on the road in under half an hour. Every stall was live and the cables reach easily even with the charge port on the far side.',
-  },
-  {
-    id: 'rv-2',
-    author: 'Diego Ramírez',
-    rating: 4,
-    date: '2026-07-18',
-    body: 'Reliable and well lit at night. Only knock is that the two end bays share a cabinet, so speeds drop noticeably when both are in use.',
-  },
-  {
-    id: 'rv-3',
-    author: 'Priya Nair',
-    rating: 5,
-    date: '2026-07-04',
-    body: 'Clean restrooms, decent coffee next door and the app started the session on the first tap. This has become my default stop on the commute home.',
-  },
 ]
 
 const IDLE_FEE_PER_MIN = 0.3
@@ -98,7 +78,34 @@ function Stars({ rating }) {
 
 export default function StationDetails() {
   const { id } = useParams()
-  const station = stations.find((s) => s.id === id) ?? stations[0]
+  const query = useQueries(
+    {
+      station: () => fetchStation(id),
+      reviews: () => fetchReviews({ stationId: id }),
+    },
+    [id]
+  )
+  const station = query.data?.station ?? null
+  const reviews = query.data?.reviews ?? []
+
+  if (query.loading && !station) return <LoadingRows rows={6} />
+  if (query.error) {
+    return <ErrorState error={query.error} onRetry={query.refetch} title="Could not load this station" />
+  }
+  if (!station) {
+    return (
+      <EmptyState
+        icon={MapPin}
+        title="Station not found"
+        description="This station is no longer on the network, or the link is out of date."
+        action={
+          <Button asChild variant="outline">
+            <Link to="/driver/stations">All stations</Link>
+          </Button>
+        }
+      />
+    )
+  }
 
   const totals = station.connectors.reduce(
     (acc, c) => ({ available: acc.available + c.available, total: acc.total + c.total }),
@@ -296,8 +303,13 @@ export default function StationDetails() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {reviews.length === 0 ? (
+            <p className="border-t px-5 py-8 text-center text-sm text-muted-foreground">
+              No reviews for this station yet.
+            </p>
+          ) : (
           <div className="divide-y border-t">
-            {STATION_REVIEWS.map((r) => (
+            {reviews.map((r) => (
               <div key={r.id} className="flex gap-3 px-5 py-4">
                 <Avatar className="h-9 w-9 shrink-0">
                   <AvatarFallback>{initials(r.author)}</AvatarFallback>
@@ -315,6 +327,7 @@ export default function StationDetails() {
               </div>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

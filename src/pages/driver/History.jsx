@@ -43,7 +43,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { chargingHistory, monthlyUsage } from '@/data/sessions'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchChargingHistory } from '@/lib/api/sessions'
+import { fetchMonthlyUsage } from '@/lib/api/analytics'
 
 const TAX_RATE = 0.08
 
@@ -52,8 +55,6 @@ const STATUS_LABELS = {
   cancelled: 'Cancelled',
   failed: 'Failed',
 }
-
-const STATUSES = [...new Set(chargingHistory.map((s) => s.status))]
 
 /** Receipt is derived from the session itself: energy × rate, no idle time, 8% tax. */
 function receiptFor(session) {
@@ -85,6 +86,13 @@ export default function History() {
   const [status, setStatus] = React.useState('all')
   const [selected, setSelected] = React.useState(null)
 
+  const data = useQueries({
+    history: () => fetchChargingHistory({ limit: 200 }),
+    usage: fetchMonthlyUsage,
+  })
+  const chargingHistory = React.useMemo(() => data.data?.history ?? [], [data.data])
+  const monthlyUsage = data.data?.usage ?? []
+
   const totals = React.useMemo(() => {
     const energy = chargingHistory.reduce((sum, s) => sum + s.energy, 0)
     const spent = chargingHistory.reduce((sum, s) => sum + s.cost, 0)
@@ -94,7 +102,13 @@ export default function History() {
       spent,
       avg: chargingHistory.length ? spent / chargingHistory.length : 0,
     }
-  }, [])
+  }, [chargingHistory])
+
+  // The status filter offers only the statuses this account actually has.
+  const statuses = React.useMemo(
+    () => [...new Set(chargingHistory.map((s) => s.status))],
+    [chargingHistory]
+  )
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -103,9 +117,21 @@ export default function History() {
       const matchesStatus = status === 'all' || s.status === status
       return matchesQuery && matchesStatus
     })
-  }, [query, status])
+  }, [chargingHistory, query, status])
 
   const receipt = selected ? receiptFor(selected) : null
+
+  if (data.loading && !data.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={8} />
+      </div>
+    )
+  }
+  if (data.error) {
+    return <ErrorState error={data.error} onRetry={data.refetch} title="Could not load your history" />
+  }
 
   return (
     <div className="space-y-6">
@@ -195,7 +221,7 @@ export default function History() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((s) => (
+            {statuses.map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABELS[s] ?? s}
               </SelectItem>

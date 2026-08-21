@@ -27,17 +27,23 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog'
-import { invoices } from '@/data/fleet'
-import { currentUsers } from '@/data/users'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { useAuth } from '@/context/auth'
+import { fetchInvoices, payInvoice as payInvoiceApi } from '@/lib/api/fleet'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 
 export default function Billing() {
-  const [rows, setRows] = useState(invoices)
+  const { profile } = useAuth()
+  const ledger = useQuery(fetchInvoices, [])
+  const rows = useMemo(() => ledger.data ?? [], [ledger.data])
+
   const [payInvoice, setPayInvoice] = useState(null)
   const [payDone, setPayDone] = useState(false)
   const [downloaded, setDownloaded] = useState({})
+  const [actionError, setActionError] = useState(null)
 
-  const manager = currentUsers.fleet
+  const company = profile?.company ?? 'your'
 
   const outstanding = rows
     .filter((i) => i.status === 'pending' || i.status === 'overdue')
@@ -59,20 +65,33 @@ export default function Billing() {
     setTimeout(() => setDownloaded((d) => ({ ...d, [id]: false })), 1500)
   }
 
-  function confirmPayment() {
+  async function confirmPayment() {
+    const id = payInvoice.id
     setPayDone(true)
+    setActionError(null)
+    try {
+      await payInvoiceApi(id)
+      ledger.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
     setTimeout(() => {
-      setRows((prev) => prev.map((i) => (i.id === payInvoice.id ? { ...i, status: 'paid' } : i)))
       setPayInvoice(null)
       setPayDone(false)
     }, 1300)
   }
 
+  if (ledger.loading && !ledger.data) return <LoadingRows rows={7} />
+  if (ledger.error) {
+    return <ErrorState error={ledger.error} onRetry={ledger.refetch} title="Could not load invoices" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That payment did not go through" />}
       <PageHeader
         title="Billing"
-        description={`Monthly consolidated invoices for the ${manager.company} fleet account`}
+        description={`Monthly consolidated invoices for the ${company} fleet account`}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -117,11 +136,11 @@ export default function Billing() {
                 <Building2 className="h-5 w-5" />
               </div>
               <div className="space-y-0.5">
-                <p className="text-sm font-medium">{manager.company}</p>
+                <p className="text-sm font-medium">{profile?.company ?? '—'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {manager.name} · {manager.role}
+                  {profile?.name ?? '—'} · Fleet Manager
                 </p>
-                <p className="text-xs text-muted-foreground">{manager.email}</p>
+                <p className="text-xs text-muted-foreground">{profile?.email ?? '—'}</p>
               </div>
             </div>
           </CardContent>

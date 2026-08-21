@@ -21,10 +21,12 @@ import {
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
-import { stations } from '@/data/stations'
+import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
+import { useQuery } from '@/hooks/use-query'
+import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 import { formatNumber } from '@/lib/utils'
 
-const OPERATORS = [...new Set(stations.map((s) => s.operator))]
+const FALLBACK_OPERATOR = 'VoltGrid Network'
 
 const STATUS_OPTIONS = [
   { key: 'online', label: 'Online' },
@@ -39,7 +41,10 @@ const EMPTY_FORM = { name: '', operator: '', address: '', city: '', price: '0.42
 const bayCount = (station) => station.connectors.reduce((sum, c) => sum + c.total, 0)
 
 export default function Stations() {
-  const [rows, setRows] = useState(stations)
+  const network = useQuery(fetchStations, [])
+  const rows = useMemo(() => network.data ?? [], [network.data])
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [operatorFilter, setOperatorFilter] = useState('all')
@@ -49,6 +54,11 @@ export default function Stations() {
   const [onboardOpen, setOnboardOpen] = useState(false)
   const [step, setStep] = useState(1)
   const [form, setForm] = useState(EMPTY_FORM)
+
+  const OPERATORS = useMemo(
+    () => [...new Set(rows.map((s) => s.operator))].filter(Boolean),
+    [rows]
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -64,9 +74,34 @@ export default function Stations() {
   const maintenanceCount = rows.filter((s) => s.status === 'maintenance').length
   const offlineCount = rows.filter((s) => s.status === 'offline').length
 
-  const setStatus = (id, status) => {
-    setRows((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)))
-    setDetail((prev) => (prev && prev.id === id ? { ...prev, status } : prev))
+  const setStatus = async (id, status) => {
+    setActionError(null)
+    try {
+      await updateStation(id, { status })
+      setDetail((prev) => (prev && prev.id === id ? { ...prev, status } : prev))
+      network.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
+
+  // Step 3 of the wizard used to be a confirmation with nothing behind it. The
+  // site is now really commissioned, with one bay per the default group.
+  const submitOnboarding = async () => {
+    setActionError(null)
+    try {
+      await createStation({
+        name: form.name.trim(),
+        address: form.address.trim(),
+        city: form.city.trim(),
+        operator: form.operator || OPERATORS[0] || FALLBACK_OPERATOR,
+        connectorCount: 4,
+      })
+      setStep(3)
+      network.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
   }
 
   const closeOnboard = (open) => {
@@ -77,8 +112,21 @@ export default function Stations() {
     }
   }
 
+  if (network.loading && !network.data) {
+    return (
+      <div className="space-y-6">
+        <LoadingCards />
+        <LoadingRows rows={8} />
+      </div>
+    )
+  }
+  if (network.error) {
+    return <ErrorState error={network.error} onRetry={network.refetch} title="Could not load stations" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Stations"
         description="Every charging site on the network, across all operators."
@@ -391,7 +439,7 @@ export default function Stations() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={() => setStep(3)}>Submit for onboarding</Button>
+                <Button onClick={submitOnboarding}>Submit for onboarding</Button>
               </DialogFooter>
             </>
           )}

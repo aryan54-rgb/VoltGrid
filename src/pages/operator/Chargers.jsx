@@ -41,23 +41,35 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
-import { chargers as chargersData, stations } from '@/data/stations'
+import { ErrorState, LoadingRows } from '@/components/shared/query-state'
+import { useQueries } from '@/hooks/use-query'
+import { fetchConnectors, fetchStations, updateConnectorStatus } from '@/lib/api/stations'
 
 const PAGE_SIZE = 10
 
-/** Fixed order — drives both the donut slices and the CHART_COLORS slots. */
-const STATUSES = ['available', 'in-use', 'faulted', 'offline', 'maintenance']
+/**
+ * The four states a bay can be in (SRS §7.1). This board used to carry
+ * `offline` and `maintenance` too, which are *station* states, not bay states —
+ * a bay at a site under maintenance now reads FAULTED, which is what the
+ * `connectors` table stores.
+ *
+ * Fixed order: it drives both the donut slices and the CHART_COLORS slots.
+ */
+const STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'FAULTED']
 
 const STATUS_LABEL = {
-  available: 'Available',
-  'in-use': 'In use',
-  faulted: 'Faulted',
-  offline: 'Offline',
-  maintenance: 'Maintenance',
+  AVAILABLE: 'Available',
+  OCCUPIED: 'In use',
+  RESERVED: 'Reserved',
+  FAULTED: 'Faulted',
 }
 
 export default function Chargers() {
-  const [list, setList] = useState(chargersData)
+  const board = useQueries({ connectors: fetchConnectors, stations: fetchStations })
+  const list = useMemo(() => board.data?.connectors ?? [], [board.data])
+  const stations = board.data?.stations ?? []
+
+  const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
   const [stationFilter, setStationFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -91,27 +103,42 @@ export default function Chargers() {
   const rangeFrom = filtered.length === 0 ? 0 : startIndex + 1
   const rangeTo = startIndex + pageRows.length
 
-  const setStatus = (id, status) =>
-    setList((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
+  const setStatus = async (id, status) => {
+    setActionError(null)
+    try {
+      await updateConnectorStatus(id, status)
+      board.refetch()
+    } catch (err) {
+      setActionError(err)
+    }
+  }
 
+  // The restart itself is still simulated — there is no OCPP link behind this
+  // button yet. What it writes back afterwards is real.
   const restart = (id) => {
     setRestarting((prev) => [...prev, id])
-    setTimeout(() => {
-      setStatus(id, 'available')
+    setTimeout(async () => {
+      await setStatus(id, 'AVAILABLE')
       setRestarting((prev) => prev.filter((x) => x !== id))
     }, 1500)
   }
 
   const toggleOnline = (charger) =>
-    setStatus(charger.id, charger.status === 'offline' ? 'available' : 'offline')
+    setStatus(charger.id, charger.status === 'FAULTED' ? 'AVAILABLE' : 'FAULTED')
 
   const resetPage = (fn) => (value) => {
     fn(value)
     setPage(1)
   }
 
+  if (board.loading && !board.data) return <LoadingRows rows={8} />
+  if (board.error) {
+    return <ErrorState error={board.error} onRetry={board.refetch} title="Could not load chargers" />
+  }
+
   return (
     <div className="space-y-6">
+      {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Chargers"
         description="Every stall across the stations you operate — power rating, throughput and live status."
@@ -128,7 +155,7 @@ export default function Chargers() {
         />
         <StatCard
           label="Available"
-          value={counts.available}
+          value={counts.AVAILABLE}
           delta={6}
           deltaLabel="vs last month"
           icon={CheckCircle2}
@@ -136,15 +163,15 @@ export default function Chargers() {
         />
         <StatCard
           label="In use"
-          value={counts['in-use']}
+          value={counts.OCCUPIED}
           delta={9}
           deltaLabel="vs last month"
           icon={BatteryCharging}
           index={2}
         />
         <StatCard
-          label="Faulted + offline"
-          value={counts.faulted + counts.offline}
+          label="Faulted"
+          value={counts.FAULTED}
           delta={-12}
           deltaLabel="vs last month"
           deltaGoodWhen="down"
@@ -296,7 +323,7 @@ export default function Chargers() {
                             Restart
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleOnline(c)}>
-                            {c.status === 'offline' ? 'Bring online' : 'Take offline'}
+                            {c.status === 'FAULTED' ? 'Return to service' : 'Take out of service'}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => setTicketFor(c)}>
