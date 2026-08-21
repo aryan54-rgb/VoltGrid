@@ -1,7 +1,18 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MapPin, Star, SearchX, Zap, Building2, LayoutGrid, List } from 'lucide-react'
+import {
+  MapPin,
+  Star,
+  SearchX,
+  Zap,
+  Building2,
+  LayoutGrid,
+  List,
+  LocateFixed,
+  LocateOff,
+  LoaderCircle,
+} from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
 import { MapPlaceholder } from '@/components/shared/map-placeholder'
@@ -20,6 +31,8 @@ import {
 import { cn, formatCurrency } from '@/lib/utils'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
+import { useGeolocation } from '@/hooks/use-geolocation'
+import { byDistance, toMarkers, withDistance } from '@/lib/geo'
 import { fetchStations } from '@/lib/api/stations'
 
 const STATUS_LABELS = {
@@ -27,6 +40,53 @@ const STATUS_LABELS = {
   'in-use': 'In use',
   maintenance: 'Maintenance',
   offline: 'Offline',
+}
+
+/**
+ * What the browser had to say about where the driver is.
+ *
+ * The three outcomes each need a different sentence: still asking, refused (a
+ * retry will not help until a browser setting changes, so the copy points
+ * there), or a fix that came back. Everything else -- no GPS lock, a timeout --
+ * is worth one more try, so those get a button.
+ */
+function LocationNotice({ location }) {
+  const { status, error, coords, loading, request } = location
+
+  if (loading) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        Finding your location to work out how far away each station is…
+      </p>
+    )
+  }
+
+  if (status === 'ready') {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <LocateFixed className="h-3.5 w-3.5 text-status-good" />
+        Distances measured from your current location
+        {coords?.accuracy ? ` (accurate to about ${Math.round(coords.accuracy)} m)` : ''}.
+      </p>
+    )
+  }
+
+  if (!error) return null
+
+  const retryable = status !== 'denied' && status !== 'unsupported'
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-status-warning/40 bg-status-warning/5 px-3 py-2 text-xs">
+      <LocateOff className="h-3.5 w-3.5 shrink-0 text-status-warning" />
+      <span className="text-muted-foreground">{error.message}</span>
+      <span className="text-muted-foreground">Stations are listed without a distance.</span>
+      {retryable && (
+        <Button variant="outline" size="sm" className="ml-auto h-7" onClick={request}>
+          Try again
+        </Button>
+      )}
+    </div>
+  )
 }
 
 function availabilityOf(station) {
@@ -70,8 +130,17 @@ function Meta({ station }) {
       </span>
       <span>({station.reviews} reviews)</span>
       <span>·</span>
-      <span>{station.distance} mi away</span>
-      <span>·</span>
+      {/* Dropped entirely when there is no fix yet, or the site is unsurveyed --
+          the notice above the list explains which, so a per-card apology would
+          only repeat it. */}
+      {station.distanceLabel && (
+        <>
+          <span className="flex items-center gap-1 font-medium text-foreground">
+            <LocateFixed className="h-3.5 w-3.5" /> {station.distanceLabel} away
+          </span>
+          <span>·</span>
+        </>
+      )}
       <span className="font-medium text-foreground">
         {formatCurrency(station.pricePerKwh)}
         <span className="font-normal text-muted-foreground">/kWh</span>
@@ -99,7 +168,17 @@ function CardActions({ station, className }) {
 
 export default function Stations() {
   const { data, loading, error, refetch } = useQuery(fetchStations, [])
-  const stations = React.useMemo(() => data ?? [], [data])
+  const rows = React.useMemo(() => data ?? [], [data])
+
+  // The browser's own position, asked for once on mount. Until (or unless) it
+  // arrives, every station's distance is null: the cards drop the phrase and
+  // the notice under the map explains why, rather than inventing a number.
+  const location = useGeolocation()
+
+  const stations = React.useMemo(
+    () => withDistance(rows, location.coords),
+    [rows, location.coords]
+  )
 
   const [query, setQuery] = React.useState('')
   const [connector, setConnector] = React.useState('all')
@@ -125,7 +204,9 @@ export default function Stations() {
     return [...list].sort((a, b) => {
       if (sortBy === 'rating') return b.rating - a.rating
       if (sortBy === 'price') return a.pricePerKwh - b.pricePerKwh
-      return a.distance - b.distance
+      // Closest first; anything we could not measure sinks to the bottom rather
+      // than sorting as if it were zero kilometres away.
+      return byDistance(a, b)
     })
   }, [stations, query, connector, status, sortBy])
 
@@ -136,6 +217,9 @@ export default function Stations() {
     [stations]
   )
   const statuses = React.useMemo(() => [...new Set(stations.map((s) => s.status))], [stations])
+
+  // Pins come from the stations' own coordinates; an unsurveyed site has none.
+  const markers = React.useMemo(() => toMarkers(stations), [stations])
 
   const clearFilters = () => {
     setQuery('')
@@ -162,13 +246,7 @@ export default function Stations() {
       <div className="space-y-2">
         <MapPlaceholder
           height={320}
-          markers={stations.map((s) => ({
-            id: s.id,
-            name: s.name,
-            x: s.x,
-            y: s.y,
-            status: s.status,
-          }))}
+          markers={markers}
           selectedId={selectedId}
           onSelect={(m) => setSelectedId((cur) => (cur === m.id ? null : m.id))}
         />
@@ -176,6 +254,7 @@ export default function Stations() {
           Pin colour follows each station&apos;s current status. Select a pin to highlight its card
           below.
         </p>
+        <LocationNotice location={location} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -212,7 +291,9 @@ export default function Stations() {
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="distance">Sort by distance</SelectItem>
+            <SelectItem value="distance">
+              {location.status === 'ready' ? 'Sort by distance' : 'Sort by distance (needs location)'}
+            </SelectItem>
             <SelectItem value="price">Sort by price</SelectItem>
             <SelectItem value="rating">Sort by rating</SelectItem>
           </SelectContent>

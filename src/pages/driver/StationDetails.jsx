@@ -33,6 +33,8 @@ import { cn, formatCurrency, formatDate, initials } from '@/lib/utils'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQueries } from '@/hooks/use-query'
+import { useGeolocation } from '@/hooks/use-geolocation'
+import { distanceKm, formatDistance, toMarkers } from '@/lib/geo'
 import { fetchStation } from '@/lib/api/stations'
 import { fetchReviews } from '@/lib/api/reviews'
 
@@ -85,6 +87,9 @@ export default function StationDetails() {
     },
     [id]
   )
+  // Before the early returns: hooks cannot be called conditionally.
+  const location = useGeolocation()
+
   const station = query.data?.station ?? null
   const reviews = query.data?.reviews ?? []
 
@@ -107,6 +112,10 @@ export default function StationDetails() {
     )
   }
 
+  // Null whenever the driver's position is unknown or the site is unsurveyed;
+  // every place that shows it drops the phrase rather than printing a blank.
+  const awayLabel = formatDistance(distanceKm(location.coords, station))
+
   const totals = station.connectors.reduce(
     (acc, c) => ({ available: acc.available + c.available, total: acc.total + c.total }),
     { available: 0, total: 0 }
@@ -116,7 +125,7 @@ export default function StationDetails() {
     <div className="space-y-6">
       <PageHeader
         title={station.name}
-        description={`${station.operator} · ${station.distance} mi away`}
+        description={awayLabel ? `${station.operator} · ${awayLabel} away` : station.operator}
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to="/driver/stations">All stations</Link>
@@ -144,8 +153,12 @@ export default function StationDetails() {
                   <span className="font-medium">{station.rating}</span>
                   <span className="text-muted-foreground">({station.reviews} reviews)</span>
                 </span>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">{station.distance} mi away</span>
+                {awayLabel && (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">{awayLabel} away</span>
+                  </>
+                )}
                 <span className="text-muted-foreground">·</span>
                 <span className="font-medium tabular-nums">
                   {formatCurrency(station.pricePerKwh)}/kWh
@@ -278,13 +291,19 @@ export default function StationDetails() {
         <div className="space-y-2">
           <MapPlaceholder
             height={260}
-            markers={[
-              { id: station.id, name: station.name, x: station.x, y: station.y, status: station.status },
-            ]}
+            markers={toMarkers([station])}
             selectedId={station.id}
           />
           <p className="text-xs text-muted-foreground">
             {station.address}, {station.city}
+            {station.latitude !== null && station.longitude !== null && (
+              <>
+                {' · '}
+                <span className="tabular-nums">
+                  {station.latitude.toFixed(5)}, {station.longitude.toFixed(5)}
+                </span>
+              </>
+            )}
           </p>
         </div>
       </div>

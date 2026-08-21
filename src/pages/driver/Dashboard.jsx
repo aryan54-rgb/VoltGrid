@@ -31,6 +31,8 @@ import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
 import { useQueries } from '@/hooks/use-query'
+import { useGeolocation } from '@/hooks/use-geolocation'
+import { byDistance, toMarkers, withDistance } from '@/lib/geo'
 import { useAuth } from '@/context/auth'
 import { fetchActiveSession, fetchChargingHistory } from '@/lib/api/sessions'
 import { fetchMonthlyUsage } from '@/lib/api/analytics'
@@ -72,7 +74,14 @@ export default function Dashboard() {
   const history = React.useMemo(() => query.data?.history ?? [], [query.data])
   const monthlyUsage = query.data?.usage ?? []
   const wallet = query.data?.wallet
-  const stations = React.useMemo(() => query.data?.stations ?? [], [query.data])
+  // Distances are measured here, from the browser's own position, rather than
+  // read off the row -- see `src/lib/geo.js`. No fix yet (or refused) just means
+  // `distanceLabel` is null and the tile shows the price instead.
+  const location = useGeolocation()
+  const stations = React.useMemo(
+    () => withDistance(query.data?.stations ?? [], location.coords),
+    [query.data, location.coords]
+  )
 
   // "This month" means the calendar month of the most recent session, not the
   // wall clock - otherwise the tile reads 0 for anyone between charges.
@@ -94,15 +103,11 @@ export default function Dashboard() {
     )
   }, [query.data])
 
-  const nearby = React.useMemo(
-    () => [...stations].sort((a, b) => a.distance - b.distance).slice(0, 4),
-    [stations]
-  )
+  // Without a position every distance is null, `byDistance` keeps the order it
+  // was given, and this degrades to "the first four stations".
+  const nearby = React.useMemo(() => [...stations].sort(byDistance).slice(0, 4), [stations])
 
-  const markers = React.useMemo(
-    () => stations.map((s) => ({ id: s.id, name: s.name, x: s.x, y: s.y, status: s.status })),
-    [stations]
-  )
+  const markers = React.useMemo(() => toMarkers(stations), [stations])
 
   const driverName = profile?.name ?? 'driver'
   const vehicle = profile?.vehicle ?? 'Your vehicle'
@@ -257,7 +262,9 @@ export default function Dashboard() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">Nearby stations</h2>
+          <h2 className="text-base font-semibold tracking-tight">
+            {location.status === 'ready' ? 'Nearby stations' : 'Stations'}
+          </h2>
           <Button asChild variant="ghost" size="sm">
             <Link to="/driver/stations">
               View all <ChevronRight />
@@ -292,8 +299,12 @@ export default function Dashboard() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{s.name}</p>
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-                          <span>{s.distance} mi</span>
-                          <span>·</span>
+                          {s.distanceLabel && (
+                            <>
+                              <span>{s.distanceLabel}</span>
+                              <span>·</span>
+                            </>
+                          )}
                           <span>{formatCurrency(s.pricePerKwh)}/kWh</span>
                           <span>·</span>
                           <span>

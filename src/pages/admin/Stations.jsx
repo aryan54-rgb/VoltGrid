@@ -25,6 +25,7 @@ import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query
 import { useQuery } from '@/hooks/use-query'
 import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 import { formatNumber } from '@/lib/utils'
+import { toMarkers } from '@/lib/geo'
 
 const FALLBACK_OPERATOR = 'VoltGrid Network'
 
@@ -145,7 +146,7 @@ export default function Stations() {
       </div>
 
       <MapPlaceholder
-        markers={rows.map((s) => ({ id: s.id, name: s.name, x: s.x, y: s.y, status: s.status }))}
+        markers={toMarkers(rows)}
         selectedId={selectedId}
         onSelect={(m) => setSelectedId(m.id === selectedId ? null : m.id)}
         height={320}
@@ -299,8 +300,14 @@ export default function Stations() {
                   <p className="font-medium">{detail.hours}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Distance from city centre</p>
-                  <p className="font-medium tabular-nums">{detail.distance} mi</p>
+                  <p className="text-xs text-muted-foreground">Coordinates</p>
+                  {detail.latitude === null || detail.longitude === null ? (
+                    <p className="font-medium text-muted-foreground">Not surveyed</p>
+                  ) : (
+                    <p className="font-medium tabular-nums">
+                      {detail.latitude.toFixed(6)}, {detail.longitude.toFixed(6)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Station ID</p>

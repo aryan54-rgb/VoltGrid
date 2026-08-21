@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Building2, CheckCircle2, MapPin, Plus, Star, Zap } from 'lucide-react'
+import { ArrowRight, Building2, CheckCircle2, Crosshair, MapPin, Plus, Star, Zap } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
 import { MapPlaceholder } from '@/components/shared/map-placeholder'
@@ -29,17 +29,82 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn, formatCurrency } from '@/lib/utils'
+import { parseLatitude, parseLongitude, toMarkers } from '@/lib/geo'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 
 const FALLBACK_OPERATOR = 'VoltGrid Network'
+const BLANK_FORM = { name: '', address: '', connectors: '4', latitude: '', longitude: '' }
+
 const STATUSES = [
   { value: 'online', label: 'Online' },
   { value: 'in-use', label: 'All bays busy' },
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'offline', label: 'Offline' },
 ]
+
+/**
+ * Coordinates are optional -- a site can be commissioned before it is surveyed
+ * -- but half a pair is never useful, and a transposed pair is the mistake a
+ * hand-typed coordinate actually makes, so the two ranges are checked apart.
+ *
+ * Returns a message to show, or null when the pair is fine.
+ */
+function coordinateError(latitude, longitude) {
+  const lat = latitude.trim()
+  const lng = longitude.trim()
+  if (!lat && !lng) return null
+  if (!lat || !lng) return 'Enter both latitude and longitude, or leave both blank.'
+  if (parseLatitude(lat) === null) return 'Latitude must be a number between -90 and 90.'
+  if (parseLongitude(lng) === null) return 'Longitude must be a number between -180 and 180.'
+  return null
+}
+
+/** The two coordinate fields, shared by the add and the manage dialog. */
+function CoordinateFields({ idPrefix, latitude, longitude, onChange, error }) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`${idPrefix}-lat`}>Coordinates</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          id={`${idPrefix}-lat`}
+          type="number"
+          step="0.00000001"
+          min="-90"
+          max="90"
+          inputMode="decimal"
+          placeholder="Latitude e.g. 18.52043210"
+          aria-label="Latitude"
+          aria-invalid={!!error}
+          value={latitude}
+          onChange={(e) => onChange({ latitude: e.target.value })}
+        />
+        <Input
+          id={`${idPrefix}-lng`}
+          type="number"
+          step="0.00000001"
+          min="-180"
+          max="180"
+          inputMode="decimal"
+          placeholder="Longitude e.g. 73.85674321"
+          aria-label="Longitude"
+          aria-invalid={!!error}
+          value={longitude}
+          onChange={(e) => onChange({ longitude: e.target.value })}
+        />
+      </div>
+      {error ? (
+        <p className="text-xs text-status-critical">{error}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Decimal degrees. Drivers measure their own distance from this pair, so it is worth
+          getting right -- leave both blank until the site has been surveyed.
+        </p>
+      )}
+    </div>
+  )
+}
 
 export default function Stations() {
   const query_ = useQuery(fetchStations, [])
@@ -53,12 +118,13 @@ export default function Stations() {
   // Add-station dialog
   const [addOpen, setAddOpen] = useState(false)
   const [addDone, setAddDone] = useState(false)
-  const [form, setForm] = useState({ name: '', address: '', connectors: '4' })
+  const [form, setForm] = useState(BLANK_FORM)
 
   // Manage dialog
   const [managing, setManaging] = useState(null)
   const [editPrice, setEditPrice] = useState('')
   const [editStatus, setEditStatus] = useState('online')
+  const [editCoords, setEditCoords] = useState({ latitude: '', longitude: '' })
   const [savedId, setSavedId] = useState(null)
   const [actionError, setActionError] = useState(null)
 
@@ -66,6 +132,20 @@ export default function Stations() {
   const OPERATORS = useMemo(
     () => [...new Set(stations.map((s) => s.operator))].filter(Boolean),
     [stations]
+  )
+
+  // Pins are projected from the stations' own coordinates, so an unsurveyed
+  // site simply has none rather than being parked somewhere invented.
+  const markers = useMemo(() => toMarkers(stations), [stations])
+  const unlocatedCount = stations.length - markers.length
+
+  const addCoordError = useMemo(
+    () => coordinateError(form.latitude, form.longitude),
+    [form.latitude, form.longitude]
+  )
+  const editCoordError = useMemo(
+    () => coordinateError(editCoords.latitude, editCoords.longitude),
+    [editCoords.latitude, editCoords.longitude]
   )
 
   const filtered = useMemo(() => {
@@ -86,12 +166,12 @@ export default function Stations() {
     setAddOpen(open)
     if (!open) {
       setAddDone(false)
-      setForm({ name: '', address: '', connectors: '4' })
+      setForm(BLANK_FORM)
     }
   }
 
   const addStation = async () => {
-    if (!form.name.trim()) return
+    if (!form.name.trim() || addCoordError) return
     setActionError(null)
     try {
       await createStation({
@@ -99,6 +179,10 @@ export default function Stations() {
         address: form.address.trim(),
         operator: OPERATORS[0] ?? FALLBACK_OPERATOR,
         connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
+        // A blank field parses to null, which is exactly what the column means
+        // by "not surveyed yet".
+        latitude: parseLatitude(form.latitude),
+        longitude: parseLongitude(form.longitude),
       })
       setAddDone(true)
       query_.refetch()
@@ -111,16 +195,24 @@ export default function Stations() {
     setManaging(station)
     setEditPrice(String(station.pricePerKwh))
     setEditStatus(station.status)
+    setEditCoords({
+      latitude: station.latitude === null ? '' : String(station.latitude),
+      longitude: station.longitude === null ? '' : String(station.longitude),
+    })
     setSavedId(null)
   }
 
   const saveManage = async () => {
+    if (editCoordError) return
     const price = parseFloat(editPrice)
     setActionError(null)
     try {
       await updateStation(managing.id, {
         pricePerKwh: Number.isFinite(price) ? price : undefined,
         status: editStatus,
+        // Clearing both fields sends null and puts the site back to unsurveyed.
+        latitude: parseLatitude(editCoords.latitude),
+        longitude: parseLongitude(editCoords.longitude),
       })
       setSavedId(managing.id)
       query_.refetch()
@@ -159,18 +251,14 @@ export default function Stations() {
       <div className="space-y-2">
         <MapPlaceholder
           height={320}
-          markers={stations.map((s) => ({
-            id: s.id,
-            name: s.name,
-            x: s.x,
-            y: s.y,
-            status: s.status,
-          }))}
+          markers={markers}
           selectedId={selectedId}
           onSelect={(m) => setSelectedId(m.id === selectedId ? null : m.id)}
         />
         <p className="text-xs text-muted-foreground">
           Pin colour follows each site&apos;s status. Select a pin to highlight its card.
+          {unlocatedCount > 0 &&
+            ` ${unlocatedCount} ${unlocatedCount === 1 ? 'site has' : 'sites have'} no coordinates yet and cannot be pinned \u2014 add them from Manage.`}
         </p>
       </div>
 
@@ -252,6 +340,16 @@ export default function Stations() {
                       </p>
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3 shrink-0" /> {s.address}, {s.city}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Crosshair className="h-3 w-3 shrink-0" />
+                        {s.latitude === null || s.longitude === null ? (
+                          <span className="text-status-warning">Coordinates not set</span>
+                        ) : (
+                          <span className="tabular-nums">
+                            {s.latitude.toFixed(6)}, {s.longitude.toFixed(6)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <StatusBadge status={s.status} />
@@ -353,6 +451,13 @@ export default function Stations() {
                     onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
                   />
                 </div>
+                <CoordinateFields
+                  idPrefix="st"
+                  latitude={form.latitude}
+                  longitude={form.longitude}
+                  error={addCoordError}
+                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                />
                 <div className="space-y-1.5">
                   <Label htmlFor="st-connectors">Connectors</Label>
                   <Input
@@ -371,7 +476,7 @@ export default function Stations() {
                 <Button variant="outline" onClick={() => closeAdd(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addStation} disabled={!form.name.trim()}>
+                <Button onClick={addStation} disabled={!form.name.trim() || !!addCoordError}>
                   Add station
                 </Button>
               </DialogFooter>
@@ -401,6 +506,13 @@ export default function Stations() {
                     onChange={(e) => setEditPrice(e.target.value)}
                   />
                 </div>
+                <CoordinateFields
+                  idPrefix="mg"
+                  latitude={editCoords.latitude}
+                  longitude={editCoords.longitude}
+                  error={editCoordError}
+                  onChange={(patch) => setEditCoords((c) => ({ ...c, ...patch }))}
+                />
                 <div className="space-y-1.5">
                   <Label>Published status</Label>
                   <Select value={editStatus} onValueChange={setEditStatus}>
@@ -429,7 +541,9 @@ export default function Stations() {
                 <Button variant="outline" onClick={() => setManaging(null)}>
                   Close
                 </Button>
-                <Button onClick={saveManage}>Save changes</Button>
+                <Button onClick={saveManage} disabled={!!editCoordError}>
+                  Save changes
+                </Button>
               </DialogFooter>
             </>
           )}

@@ -1,5 +1,12 @@
-// Emits supabase/migrations/20260821160000_phase2_seed.sql from src/data/*.js
-// so the seed cannot drift from the shapes the UI was built against.
+// Emits supabase/migrations/20260821210000_seed.sql from src/data/*.js so the
+// seed cannot drift from the shapes the UI was built against.
+//
+// It used to overwrite 20260821160000_phase2_seed.sql in place. It cannot any
+// more: 20260821200000_station_coordinates.sql replaced stations.x/y/distance
+// with latitude/longitude, and a seed written against today's columns is not
+// replayable at a point in history where those columns did not exist yet. The
+// output therefore lands *after* every schema migration. The original
+// phase2_seed file stays exactly as it ran, and is left alone.
 import { stations, connectors, timeSlots } from '../src/data/stations.js'
 import { adminUsers, currentUsers } from '../src/data/users.js'
 import { activeSession, chargingHistory, monthlyUsage } from '../src/data/sessions.js'
@@ -145,15 +152,16 @@ insert(
 // ---- stations + connectors -------------------------------------------------
 insert(
   'stations',
-  ['id', 'name', 'address', 'city', 'distance', 'rating', 'reviews', 'price_per_kwh', 'status', 'x', 'y', 'amenities', 'hours', 'operator', 'utilization'],
+  ['id', 'name', 'address', 'city', 'latitude', 'longitude', 'rating', 'reviews', 'price_per_kwh', 'status', 'amenities', 'hours', 'operator', 'utilization'],
   stations.map((s) =>
-    `(${q(s.id)}, ${q(s.name)}, ${q(s.address)}, ${q(s.city)}, ${n(s.distance)}, ${n(s.rating)}, ${n(s.reviews)}, ${n(s.pricePerKwh)}, ${q(s.status)}, ${n(s.x)}, ${n(s.y)}, ${arr(s.amenities)}, ${q(s.hours)}, ${q(s.operator)}, ${n(s.utilization)})`
+    `(${q(s.id)}, ${q(s.name)}, ${q(s.address)}, ${q(s.city)}, ${n(s.latitude)}, ${n(s.longitude)}, ${n(s.rating)}, ${n(s.reviews)}, ${n(s.pricePerKwh)}, ${q(s.status)}, ${arr(s.amenities)}, ${q(s.hours)}, ${q(s.operator)}, ${n(s.utilization)})`
   ),
   `ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name, address = EXCLUDED.address, city = EXCLUDED.city,
-    distance = EXCLUDED.distance, rating = EXCLUDED.rating, reviews = EXCLUDED.reviews,
-    price_per_kwh = EXCLUDED.price_per_kwh, status = EXCLUDED.status, x = EXCLUDED.x,
-    y = EXCLUDED.y, amenities = EXCLUDED.amenities, hours = EXCLUDED.hours,
+    latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
+    rating = EXCLUDED.rating, reviews = EXCLUDED.reviews,
+    price_per_kwh = EXCLUDED.price_per_kwh, status = EXCLUDED.status,
+    amenities = EXCLUDED.amenities, hours = EXCLUDED.hours,
     operator = EXCLUDED.operator, utilization = EXCLUDED.utilization`
 )
 
@@ -433,7 +441,7 @@ insert(
 )
 
 fs.writeFileSync(
-  new URL('../supabase/migrations/20260821160000_phase2_seed.sql', import.meta.url),
+  new URL('../supabase/migrations/20260821210000_seed.sql', import.meta.url),
   out.join('\n'),
   'utf8'
 )

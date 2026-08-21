@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { parseLatitude, parseLongitude } from '@/lib/geo'
 import { unwrap } from './helpers'
 
 /**
@@ -15,13 +16,15 @@ export function mapStation(row, groups = []) {
     name: row.name,
     address: row.address,
     city: row.city,
-    distance: row.distance == null ? null : Number(row.distance),
+    // Where the site actually is. How far away it is depends on who is asking,
+    // so it is measured on the client (`@/lib/geo`) rather than stored.
+    // Postgres hands DECIMAL back as a string; the maths wants numbers.
+    latitude: parseLatitude(row.latitude),
+    longitude: parseLongitude(row.longitude),
     rating: row.rating == null ? null : Number(row.rating),
     reviews: row.reviews ?? 0,
     pricePerKwh: Number(row.price_per_kwh),
     status: row.status,
-    x: row.x,
-    y: row.y,
     amenities: row.amenities ?? [],
     hours: row.hours,
     operator: row.operator,
@@ -91,14 +94,22 @@ export async function fetchConnectorsFor(stationId) {
   return rows.map((r) => mapConnector(r, r.stations?.name))
 }
 
-/** Operator action: change what a station charges, or take it offline. */
-export async function updateStation(id, { pricePerKwh, status }) {
+/**
+ * Operator action: change what a station charges, take it offline, or correct
+ * where it sits.
+ *
+ * Every field is optional and `undefined` means "leave it alone" — an explicit
+ * `null` latitude/longitude is how a site goes back to unsurveyed.
+ */
+export async function updateStation(id, { pricePerKwh, status, latitude, longitude }) {
   const [row, groups] = await Promise.all([
     supabase
       .from('stations')
       .update({
         ...(pricePerKwh === undefined ? {} : { price_per_kwh: pricePerKwh }),
         ...(status === undefined ? {} : { status }),
+        ...(latitude === undefined ? {} : { latitude: parseLatitude(latitude) }),
+        ...(longitude === undefined ? {} : { longitude: parseLongitude(longitude) }),
       })
       .eq('id', id)
       .select('*')
@@ -115,7 +126,17 @@ export async function updateStation(id, { pricePerKwh, status }) {
  * The bays are inserted alongside it, because a station with no connectors is
  * invisible everywhere the UI counts availability.
  */
-export async function createStation({ name, address, city, operator, connectorCount, type = 'CCS2', powerKw = 150 }) {
+export async function createStation({
+  name,
+  address,
+  city,
+  operator,
+  connectorCount,
+  latitude,
+  longitude,
+  type = 'CCS2',
+  powerKw = 150,
+}) {
   const existing = await supabase.from('stations').select('id').then(unwrap)
   const nextNumber = existing.length + 1
   const id = `st-${String(nextNumber).padStart(2, '0')}`
@@ -127,14 +148,14 @@ export async function createStation({ name, address, city, operator, connectorCo
       name,
       address: address || 'Address pending',
       city: city || 'San Francisco, CA',
-      distance: 0,
       rating: 0,
       reviews: 0,
       price_per_kwh: 0.4,
       status: 'online',
-      // Placed on the map on a coprime stride so new sites do not stack up.
-      x: 20 + ((nextNumber * 17) % 60),
-      y: 18 + ((nextNumber * 23) % 55),
+      // Null until somebody surveys the site. The station still lists; it just
+      // has no distance and no pin.
+      latitude: parseLatitude(latitude),
+      longitude: parseLongitude(longitude),
       amenities: [],
       hours: 'Open 24 hours',
       operator,
