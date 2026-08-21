@@ -114,6 +114,22 @@ export async function fetchSlotAvailability(stationId, date) {
   }))
 }
 
+/**
+ * Request a bay. The booking is not confirmed by making it.
+ *
+ * The row lands as PENDING and an operator turns it into RESERVED from
+ * /operator/reservations. PENDING is already in `LIVE_STATUSES`, so the slot
+ * stops being offered to anyone else the moment it is requested -- a request
+ * nobody has approved still holds the grid position.
+ *
+ * The operators' notification is NOT sent from here. `notifications` is
+ * deliberately not client-writable (no INSERT grant, no INSERT policy), because
+ * a client that can write one can address any role with any wording. Migration
+ * 20260821220000 puts an AFTER INSERT trigger on this table instead, so the
+ * broadcast is written in the same transaction as the row it describes: by the
+ * time this function returns, the notification already exists, and if it could
+ * not be written the booking was rolled back rather than silently unannounced.
+ */
 export async function createReservation({ userId, stationId, connectorId, date, startTime, endTime }) {
   const row = await supabase
     .from('reservations')
@@ -125,7 +141,7 @@ export async function createReservation({ userId, stationId, connectorId, date, 
       date,
       start_time: startTime,
       end_time: endTime,
-      status: 'RESERVED',
+      status: 'PENDING',
     })
     .select(SELECT)
     .single()

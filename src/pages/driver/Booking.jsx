@@ -72,7 +72,7 @@ export default function Booking() {
   const [date, setDate] = React.useState(dates[0].iso)
   const [slotId, setSlotId] = React.useState(null)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
-  const [bookingId, setBookingId] = React.useState(null)
+  const [booking, setBooking] = React.useState(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState(null)
 
@@ -123,7 +123,7 @@ export default function Booking() {
         startTime: slot.startTime,
         endTime: slot.endTime,
       })
-      setBookingId(reservation.id)
+      setBooking(reservation)
       setConfirmOpen(true)
       slots.refetch()
     } catch (err) {
@@ -436,13 +436,13 @@ export default function Booking() {
           </Button>
         ) : (
           <Button onClick={confirm} disabled={submitting}>
-            <CheckCircle2 /> {submitting ? 'Booking…' : 'Confirm booking'}
+            <CheckCircle2 /> {submitting ? 'Requesting…' : 'Request booking'}
           </Button>
         )}
       </div>
 
       {submitError && (
-        <ErrorState error={submitError} title="Could not confirm this booking" onRetry={confirm} />
+        <ErrorState error={submitError} title="Could not send this booking request" onRetry={confirm} />
       )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -453,13 +453,14 @@ export default function Booking() {
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 16 }}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"
+                className="flex h-14 w-14 items-center justify-center rounded-full bg-status-warning/10 text-status-warning"
               >
-                <CheckCircle2 className="h-7 w-7" />
+                <Clock className="h-7 w-7" />
               </motion.div>
-              <DialogTitle>Booking confirmed</DialogTitle>
+              <DialogTitle>Booking requested</DialogTitle>
               <DialogDescription>
-                A {connector?.type} charger at {station.name} is held for you.
+                Your request for a {connector?.type} charger at {station.name} is pending operator
+                approval. The slot is held for you until they respond.
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -467,7 +468,7 @@ export default function Booking() {
           <div className="space-y-2 rounded-xl border p-4 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Booking ID</span>
-              <span className="font-mono font-medium">{bookingId}</span>
+              <span className="font-mono font-medium">{booking?.id}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">When</span>
@@ -477,7 +478,7 @@ export default function Booking() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Status</span>
-              <StatusBadge status="RESERVED" />
+              <StatusBadge status={booking?.status ?? 'PENDING'} />
             </div>
           </div>
 
