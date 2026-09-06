@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "test:qa": "node scripts/qa-verify.mjs",
+    "check:db": "node scripts/check-db.mjs",
     "seed:sql": "node scripts/generate-seed.mjs",
     "preview": "vite preview"
   },
