@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { SearchInput } from '@/components/shared/search-input'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { MapPlaceholder } from '@/components/shared/map-placeholder'
+import { StationMap } from '@/components/shared/station-map'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,7 +25,6 @@ import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query
 import { useQuery } from '@/hooks/use-query'
 import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 import { formatNumber } from '@/lib/utils'
-import { toMarkers } from '@/lib/geo'
 
 const FALLBACK_OPERATOR = 'VoltGrid Network'
 
@@ -145,10 +144,10 @@ export default function Stations() {
         <StatCard label="Offline" value={formatNumber(offlineCount)} delta={-1.2} deltaGoodWhen="down" icon={WifiOff} index={3} />
       </div>
 
-      <MapPlaceholder
-        markers={toMarkers(rows)}
+      <StationMap
+        stations={rows}
         selectedId={selectedId}
-        onSelect={(m) => setSelectedId(m.id === selectedId ? null : m.id)}
+        onSelect={(station) => setSelectedId(station.id === selectedId ? null : station.id)}
         height={320}
       />
 
