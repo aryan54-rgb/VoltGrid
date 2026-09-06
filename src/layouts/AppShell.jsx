@@ -150,8 +150,14 @@ function NotificationsMenu({ role }) {
         {items.map((n) => (
           <DropdownMenuItem
             key={n.id}
-            className="items-start gap-3 py-2.5"
-            onClick={() => role === 'driver' && navigate('/driver/notifications')}
+            className="items-start gap-3 py-2.5 cursor-pointer"
+            onClick={() => {
+              if (role === 'driver') {
+                navigate('/driver/notifications')
+              } else if (role === 'operator') {
+                navigate('/operator/reservations')
+              }
+            }}
           >
             <span
               className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', n.read ? 'bg-border' : 'bg-primary')}
@@ -168,6 +174,14 @@ function NotificationsMenu({ role }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem className="justify-center text-primary" onClick={() => navigate('/driver/notifications')}>
               View all notifications
+            </DropdownMenuItem>
+          </>
+        )}
+        {role === 'operator' && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="justify-center text-primary font-medium" onClick={() => navigate('/operator/reservations')}>
+              View Reservations board
             </DropdownMenuItem>
           </>
         )}

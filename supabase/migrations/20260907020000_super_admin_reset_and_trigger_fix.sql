@@ -36,7 +36,6 @@ TRUNCATE TABLE
   public.fleet_settings,
   public.analytics_series,
   public.connectors,
-  public.station_connector_groups,
   public.stations
 RESTART IDENTITY CASCADE;
 

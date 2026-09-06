@@ -5,6 +5,8 @@ import {
   Activity,
   AlertTriangle,
   BatteryCharging,
+  Building2,
+  CalendarClock,
   CheckCircle2,
   ExternalLink,
   Gauge,
@@ -12,6 +14,7 @@ import {
   OctagonAlert,
   Play,
   Plug,
+  Plus,
   Radio,
   RotateCcw,
   ShieldAlert,
@@ -29,7 +32,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import { useQuery } from '@/hooks/use-query'
-import { fetchStations } from '@/lib/api/stations'
+import { fetchStations, fetchConnectorsFor } from '@/lib/api/stations'
+import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
+import { useAuth } from '@/context/auth'
 import { useKioskSimulator, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
 
 const SPEED_OPTIONS = [
@@ -46,6 +51,7 @@ function formatDuration(totalSeconds) {
 }
 
 export default function KioskSimulator() {
+  const { profile, role: userRole } = useAuth()
   const {
     state,
     plugCable,
@@ -57,20 +63,81 @@ export default function KioskSimulator() {
     stopAndUnplug,
     resetFault,
     setStationAndConnector,
+    setDriverInfo,
     setStreamSpeed,
   } = useKioskSimulator()
 
   const stationsQuery = useQuery(fetchStations, [])
-  const stations = useMemo(() => stationsQuery.data ?? [], [stationsQuery.data])
+  const allStations = useMemo(() => stationsQuery.data ?? [], [stationsQuery.data])
+
+  // Filter stations strictly to the ones owned by this operator
+  const stations = useMemo(() => {
+    if (userRole === 'admin') return allStations
+    if (userRole === 'operator' && profile) {
+      const owned = allStations.filter((s) => {
+        if (s.operatorId && s.operatorId === profile.id) return true
+        if (profile.company && s.operator && s.operator.toLowerCase().trim() === profile.company.toLowerCase().trim()) return true
+        if (profile.name && s.operator && s.operator.toLowerCase().trim() === profile.name.toLowerCase().trim()) return true
+        if (profile.email && s.operator && s.operator.toLowerCase().trim() === profile.email.toLowerCase().trim()) return true
+        return false
+      })
+      return owned
+    }
+    return allStations
+  }, [allStations, userRole, profile])
+
+  const [connectors, setConnectors] = useState([])
+  const [loadingConnectors, setLoadingConnectors] = useState(false)
+
+  // Dynamically load real connector bays for the selected station
+  useEffect(() => {
+    if (!state.stationId) return
+    let active = true
+    setLoadingConnectors(true)
+    fetchConnectorsFor(state.stationId)
+      .then((data) => {
+        if (!active) return
+        setConnectors(data || [])
+        if (data && data.length > 0 && !data.some((c) => c.id === state.connectorId)) {
+          setStationAndConnector({
+            connectorId: data[0].id,
+            connectorLabel: `Bay ${data[0].label} (${data[0].type})`,
+            powerKw: data[0].powerKw || 150,
+          })
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        setConnectors([])
+      })
+      .finally(() => {
+        if (active) setLoadingConnectors(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [state.stationId, state.connectorId, setStationAndConnector])
+
+  // Query reservations for quick-start and approval
+  const reservationsQuery = useQuery(fetchReservations, [])
+  const allReservations = useMemo(() => reservationsQuery.data ?? [], [reservationsQuery.data])
+
+  const pendingBookings = useMemo(() => {
+    return allReservations.filter((r) => r.stationId === state.stationId && r.status === 'PENDING')
+  }, [allReservations, state.stationId])
+
+  const approvedBookings = useMemo(() => {
+    return allReservations.filter((r) => r.stationId === state.stationId && r.status === 'RESERVED')
+  }, [allReservations, state.stationId])
 
   const [selectedFault, setSelectedFault] = useState('OVER_CURRENT')
   const [logFilter, setLogFilter] = useState('all')
 
-  // When stations load, sync station metadata if available
+  // When operator's stations load, sync simulator target
   useEffect(() => {
     if (stations.length > 0) {
       const current = stations.find((s) => s.id === state.stationId) || stations[0]
-      if (current && (state.stationName !== current.name || state.pricePerKwh !== current.pricePerKwh)) {
+      if (current && (state.stationId !== current.id || state.stationName !== current.name || state.pricePerKwh !== current.pricePerKwh)) {
         setStationAndConnector({
           stationId: current.id,
           stationName: current.name,
@@ -136,6 +203,94 @@ export default function KioskSimulator() {
         }
       />
 
+      {/* Warning if operator owns no stations */}
+      {stations.length === 0 && !stationsQuery.loading && (
+        <Card className="border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Building2 className="h-5 w-5 text-amber-500 shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold">No stations assigned to your operator account</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  You are signed in as <strong>{profile?.name || profile?.email || 'Station Operator'}</strong>. Only stations registered under your account are displayed here.
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="gap-1.5 shrink-0">
+              <Link to="/operator/stations">
+                <Plus className="h-3.5 w-3.5" /> Commission Station
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Driver Booking Notification Banner: Pending Approval */}
+      {pendingBookings.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/10 p-3.5 text-amber-900 dark:text-amber-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <CalendarClock className="h-5 w-5 text-amber-500 shrink-0" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                    {pendingBookings.length} Driver Booking Request Pending
+                  </span>
+                  <span className="text-xs font-semibold">{pendingBookings[0].customer}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Slot: {pendingBookings[0].date} ({pendingBookings[0].time}) · {pendingBookings[0].charger}
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline" className="gap-1.5 border-amber-500/40 shrink-0">
+              <Link to="/operator/reservations">
+                Review & Approve on Reservations Board
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Driver Booking Ready to Charge Banner: Approved */}
+      {approvedBookings.length > 0 && (
+        <Card className="border-emerald-500/40 bg-emerald-500/10 p-3.5 text-emerald-900 dark:text-emerald-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                    Approved Booking Ready
+                  </span>
+                  <span className="text-xs font-semibold">{approvedBookings[0].customer}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Slot: {approvedBookings[0].date} ({approvedBookings[0].time}) · {approvedBookings[0].charger}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs shrink-0"
+              disabled={isCharging}
+              onClick={() => {
+                const b = approvedBookings[0]
+                setDriverInfo({ driverName: b.customer, driverUserId: b.userId, vehicle: 'Tesla Model 3' })
+                if (b.connectorId) {
+                  setStationAndConnector({ connectorId: b.connectorId, connectorLabel: b.connectorLabel || b.charger })
+                }
+                plugCable()
+                setTimeout(() => startSession(), 600)
+                setReservationStatus(b.id, 'ACTIVE').catch(() => {})
+              }}
+            >
+              <Play className="h-4 w-4 fill-current" /> Plug & Start Session for Driver
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Hardware Target Configuration Bar */}
       <Card className="bg-muted/40 border-dashed">
         <CardContent className="p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -151,7 +306,7 @@ export default function KioskSimulator() {
                     <>
                       {stations.map((st) => (
                         <SelectItem key={st.id} value={st.id} className="text-xs">
-                          {st.name}
+                          {st.name} {st.city ? `(${st.city})` : ''}
                         </SelectItem>
                       ))}
                       {!stations.some((st) => st.id === (state.stationId || 'st-01')) && (
@@ -162,7 +317,7 @@ export default function KioskSimulator() {
                     </>
                   ) : (
                     <SelectItem value={state.stationId || 'st-01'} className="text-xs">
-                      {state.stationName || 'Downtown EV Fast Hub'}
+                      {state.stationName || 'No station registered'}
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -172,17 +327,34 @@ export default function KioskSimulator() {
               <span className="text-xs text-muted-foreground block mb-1 font-medium">Connector Bay</span>
               <Select
                 value={state.connectorId || 'st-01-c11'}
-                onValueChange={(cid) => setStationAndConnector({ connectorId: cid, connectorLabel: cid })}
+                onValueChange={(cid) => {
+                  const found = connectors.find((c) => c.id === cid)
+                  setStationAndConnector({
+                    connectorId: cid,
+                    connectorLabel: found ? `Bay ${found.label} (${found.type})` : cid,
+                    powerKw: found?.powerKw || state.powerKw,
+                  })
+                }}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select connector" />
+                  <SelectValue placeholder={loadingConnectors ? 'Loading bays...' : 'Select connector'} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="st-01-c11" className="text-xs">Bay A1 · CCS2 150 kW</SelectItem>
-                  <SelectItem value="st-01-c12" className="text-xs">Bay A2 · CCS2 150 kW</SelectItem>
-                  <SelectItem value="st-01-c13" className="text-xs">Bay B1 · CHAdeMO 50 kW</SelectItem>
-                  {!['st-01-c11', 'st-01-c12', 'st-01-c13'].includes(state.connectorId) && state.connectorId && (
-                    <SelectItem value={state.connectorId} className="text-xs">{state.connectorLabel || state.connectorId}</SelectItem>
+                  {connectors.length > 0 ? (
+                    connectors.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        Bay {c.label} · {c.type} {c.powerKw} kW ({c.status})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="st-01-c11" className="text-xs">Bay A1 · CCS2 150 kW</SelectItem>
+                      <SelectItem value="st-01-c12" className="text-xs">Bay A2 · CCS2 150 kW</SelectItem>
+                      <SelectItem value="st-01-c13" className="text-xs">Bay B1 · CHAdeMO 50 kW</SelectItem>
+                      {!['st-01-c11', 'st-01-c12', 'st-01-c13'].includes(state.connectorId) && state.connectorId && (
+                        <SelectItem value={state.connectorId} className="text-xs">{state.connectorLabel || state.connectorId}</SelectItem>
+                      )}
+                    </>
                   )}
                 </SelectContent>
               </Select>

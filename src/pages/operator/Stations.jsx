@@ -33,6 +33,7 @@ import { parseLatitude, parseLongitude, toMarkers } from '@/lib/geo'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
+import { useAuth } from '@/context/auth'
 
 const FALLBACK_OPERATOR = 'VoltGrid Network'
 const BLANK_FORM = { name: '', address: '', connectors: '4', latitude: '', longitude: '' }
@@ -132,6 +133,7 @@ function CoordinateFields({
 }
 
 export default function Stations() {
+  const { profile } = useAuth()
   const query_ = useQuery(fetchStations, [])
   const stations = useMemo(() => query_.data ?? [], [query_.data])
 
@@ -236,7 +238,8 @@ export default function Stations() {
       await createStation({
         name: form.name.trim(),
         address: form.address.trim(),
-        operator: OPERATORS[0] ?? FALLBACK_OPERATOR,
+        operator: profile?.company || profile?.name || profile?.email || OPERATORS[0] || FALLBACK_OPERATOR,
+        operatorId: profile?.id || null,
         connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
         // A blank field parses to null, which is exactly what the column means
         // by "not surveyed yet".

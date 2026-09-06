@@ -28,6 +28,7 @@ export function mapStation(row, groups = []) {
     amenities: row.amenities ?? [],
     hours: row.hours,
     operator: row.operator,
+    operatorId: row.operator_id,
     utilization: row.utilization ?? 0,
     connectors: groups
       .filter((g) => g.station_id === row.id)
@@ -131,6 +132,7 @@ export async function createStation({
   address,
   city,
   operator,
+  operatorId,
   connectorCount,
   latitude,
   longitude,
@@ -141,29 +143,39 @@ export async function createStation({
   const nextNumber = existing.length + 1
   const id = `st-${String(nextNumber).padStart(2, '0')}`
 
-  const station = await supabase
-    .from('stations')
-    .insert({
-      id,
-      name,
-      address: address || 'Address pending',
-      city: city || 'San Francisco, CA',
-      rating: 0,
-      reviews: 0,
-      price_per_kwh: 0.4,
-      status: 'online',
-      // Null until somebody surveys the site. The station still lists; it just
-      // has no distance and no pin.
-      latitude: parseLatitude(latitude),
-      longitude: parseLongitude(longitude),
-      amenities: [],
-      hours: 'Open 24 hours',
-      operator,
-      utilization: 0,
-    })
-    .select('*')
-    .single()
-    .then(unwrap)
+  const baseData = {
+    id,
+    name,
+    address: address || 'Address pending',
+    city: city || 'San Francisco, CA',
+    rating: 0,
+    reviews: 0,
+    price_per_kwh: 0.4,
+    status: 'online',
+    latitude: parseLatitude(latitude),
+    longitude: parseLongitude(longitude),
+    amenities: [],
+    hours: 'Open 24 hours',
+    operator,
+    utilization: 0,
+  }
+
+  let station
+  try {
+    station = await supabase
+      .from('stations')
+      .insert({ ...baseData, ...(operatorId ? { operator_id: operatorId } : {}) })
+      .select('*')
+      .single()
+      .then(unwrap)
+  } catch {
+    station = await supabase
+      .from('stations')
+      .insert(baseData)
+      .select('*')
+      .single()
+      .then(unwrap)
+  }
 
   const bays = Array.from({ length: Math.max(1, connectorCount) }, (_, i) => ({
     id: `${id}-c1${i + 1}`,
