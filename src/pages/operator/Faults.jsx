@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CircleDot, Inbox, MoreHorizontal, Timer } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, CircleDot, Inbox, MoreHorizontal, Timer, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { SearchInput } from '@/components/shared/search-input'
@@ -34,6 +35,7 @@ import { cn, formatDateTime, timeAgo } from '@/lib/utils'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { assignTicket, escalateTicket, fetchTickets } from '@/lib/api/tickets'
+import { useKioskTelemetry, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
 
 /**
  * SLA breaches are measured against the demo dataset's "now", not the wall
@@ -61,7 +63,42 @@ const MAINTENANCE_CREW = ['Alex Turner', 'Omar Haddad']
 
 export default function Faults() {
   const queue = useQuery(fetchTickets, [])
-  const tickets = useMemo(() => queue.data ?? [], [queue.data])
+  const telemetry = useKioskTelemetry()
+  const tickets = useMemo(() => {
+    const raw = queue.data ?? []
+    if (telemetry?.kioskState === 'FAULTED' && telemetry.faultState) {
+      const simId = `TK-LIVE-${telemetry.connectorId}`
+      if (!raw.some((t) => t.id === simId)) {
+        const faultDef = FAULT_DEFINITIONS[telemetry.faultState] || {
+          code: 'E-301',
+          label: 'Hardware Fault',
+          severity: 'CRITICAL',
+          description: telemetry.faultDetails || 'Contactor safety trip.',
+        }
+        const liveTicket = {
+          id: simId,
+          title: `${faultDef.label} (${faultDef.code})`,
+          stationId: telemetry.stationId,
+          stationName: telemetry.stationName,
+          connectorId: telemetry.connectorId,
+          connectorLabel: telemetry.connectorLabel,
+          faultCode: faultDef.code,
+          priority: faultDef.severity,
+          status: 'OPEN',
+          source: 'KIOSK_EMULATOR',
+          category: 'Hardware',
+          reporter: 'VoltGrid Digital Twin Telemetry',
+          reportedAt: new Date(telemetry.updatedAt).toISOString(),
+          slaDueAt: new Date(Date.now() + 4 * 3600000).toISOString(),
+          description: faultDef.description,
+          parts: [],
+          activity: [],
+        }
+        return [liveTicket, ...raw]
+      }
+    }
+    return raw
+  }, [queue.data, telemetry])
 
   const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
@@ -133,6 +170,13 @@ export default function Faults() {
       <PageHeader
         title="Fault queue"
         description="Reported faults across your network, triaged and assigned against an SLA."
+        actions={
+          <Button asChild size="sm" variant="outline" className="gap-1.5 shadow-xs">
+            <Link to="/operator/kiosk">
+              <Radio className="h-3.5 w-3.5 text-primary animate-pulse" /> Kiosk Simulator
+            </Link>
+          </Button>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

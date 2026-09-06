@@ -51,6 +51,7 @@ const OperatorConnectors = lazy(() => import('@/pages/operator/Connectors'))
 const OperatorFaults = lazy(() => import('@/pages/operator/Faults'))
 const OperatorReservations = lazy(() => import('@/pages/operator/Reservations'))
 const OperatorRevenue = lazy(() => import('@/pages/operator/Revenue'))
+const KioskSimulator = lazy(() => import('@/pages/operator/KioskSimulator'))
 
 // admin
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/driver/stations/:id/book" element={<DriverBooking />} />
           <Route path="/driver/reservations" element={<DriverReservations />} />
           <Route path="/driver/session" element={<DriverActiveSession />} />
+          <Route path="/driver/active-session" element={<DriverActiveSession />} />
           <Route path="/driver/history" element={<DriverHistory />} />
           <Route path="/driver/wallet" element={<DriverWallet />} />
           <Route path="/driver/transactions" element={<DriverTransactions />} />
@@ -141,6 +143,8 @@ export default function App() {
           <Route path="/operator/faults" element={<OperatorFaults />} />
           <Route path="/operator/reservations" element={<OperatorReservations />} />
           <Route path="/operator/revenue" element={<OperatorRevenue />} />
+          <Route path="/operator/kiosk" element={<KioskSimulator />} />
+          <Route path="/operator/kiosk-simulator" element={<KioskSimulator />} />
         </Route>
 
         {/* admin */}
@@ -152,6 +156,8 @@ export default function App() {
           <Route path="/admin/reports" element={<AdminReports />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/kiosk" element={<KioskSimulator />} />
+          <Route path="/admin/kiosk-simulator" element={<KioskSimulator />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

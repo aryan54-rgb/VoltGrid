@@ -19,11 +19,14 @@ import {
   FileText,
   Plug,
   Zap,
+  Radio,
+  OctagonAlert,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { CHART_COLORS, GRID, axisProps, ChartTooltip, ChartCard } from '@/components/shared/chart'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -40,6 +43,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { fetchActiveSession } from '@/lib/api/sessions'
+import { useKioskTelemetry, KioskEngine, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
 
 const TICK_MS = 2000
 const SOC_STEP = 1
@@ -126,6 +130,13 @@ function DetailRow({ label, value }) {
  */
 function LiveSession({ session }) {
   const activeSession = session
+  const telemetry = useKioskTelemetry()
+  const isTwinActive = Boolean(
+    session.isTwinTelemetry ||
+    telemetry.kioskState !== 'IDLE' ||
+    telemetry.sessionId === session.id
+  )
+
   const kwhPerSoc = React.useMemo(() => batteryKwhFor(session) / 100, [session])
 
   // The feed continues from the last telemetry stamp on the stored curve.
@@ -163,11 +174,42 @@ function LiveSession({ session }) {
   const [curve, setCurve] = React.useState(() =>
     (session.powerCurve ?? []).map((p) => ({ t: p.t, kw: p.kw }))
   )
-  const [status, setStatus] = React.useState('charging')
+  const [status, setStatus] = React.useState(() => session.status || 'charging')
   const [stopOpen, setStopOpen] = React.useState(false)
   const liveRef = React.useRef(initialLive)
 
+  // Real-time synchronization with Kiosk Hardware Digital Twin
   React.useEffect(() => {
+    if (!isTwinActive) return
+    const currentKw = telemetry.kioskState === 'CHARGING' && telemetry.powerStreamActive ? telemetry.powerKw : 0
+    const next = {
+      soc: telemetry.currentSoc,
+      energyKwh: telemetry.chargingKwh,
+      costSoFar: telemetry.costSoFar,
+      powerKw: currentKw,
+      elapsedMin: Math.floor((telemetry.elapsedSeconds || 0) / 60),
+    }
+    liveRef.current = next
+    setLive(next)
+
+    if (telemetry.powerCurve && telemetry.powerCurve.length > 0) {
+      setCurve(telemetry.powerCurve)
+    }
+
+    if (telemetry.kioskState === 'FAULTED') {
+      setStatus('faulted')
+    } else if (telemetry.kioskState === 'COMPLETE') {
+      setStatus('completed')
+    } else if (telemetry.kioskState === 'IDLE') {
+      if (status === 'charging') setStatus('completed')
+    } else if (telemetry.kioskState === 'CHARGING') {
+      setStatus('charging')
+    }
+  }, [telemetry, isTwinActive, status])
+
+  // Fallback internal simulation tick only if NOT connected to active hardware twin
+  React.useEffect(() => {
+    if (isTwinActive) return undefined
     if (status !== 'charging') return undefined
     const interval = setInterval(() => {
       const prev = liveRef.current
@@ -189,15 +231,19 @@ function LiveSession({ session }) {
       setCurve((c) => [...c, { t: clockLabel(next.elapsedMin), kw: next.powerKw }])
     }, TICK_MS)
     return () => clearInterval(interval)
-  }, [status, activeSession, kwhPerSoc, powerAtSoc, clockLabel])
+  }, [status, activeSession, kwhPerSoc, powerAtSoc, clockLabel, isTwinActive])
 
   const charging = status === 'charging'
+  const isFaulted = status === 'faulted' || telemetry.kioskState === 'FAULTED'
   const remainingKwh = Math.max(0, (activeSession.targetSoc - live.soc) * kwhPerSoc)
   const minutesRemaining = charging && live.powerKw > 0 ? (remainingKwh / live.powerKw) * 60 : 0
 
   const stopSession = () => {
     setStopOpen(false)
     setStatus('completed')
+    if (isTwinActive) {
+      KioskEngine.stopAndUnplug()
+    }
   }
 
   return (
@@ -206,19 +252,55 @@ function LiveSession({ session }) {
         title="Active charging session"
         description={`${activeSession.id} · ${activeSession.stationName} · ${activeSession.charger}`}
         actions={
-          charging ? (
-            <motion.span
-              className="inline-flex"
-              animate={{ opacity: [1, 0.55, 1] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <StatusBadge status="charging" />
-            </motion.span>
-          ) : (
-            <StatusBadge status="completed" />
-          )
+          <div className="flex items-center gap-2">
+            {isTwinActive && (
+              <Badge variant="outline" className="gap-1.5 py-1 px-2.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                <Radio className="h-3 w-3 animate-ping" /> Hardware Digital Twin Synced
+              </Badge>
+            )}
+            {isFaulted ? (
+              <StatusBadge status="faulted" />
+            ) : charging ? (
+              <motion.span
+                className="inline-flex"
+                animate={{ opacity: [1, 0.55, 1] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <StatusBadge status="charging" />
+              </motion.span>
+            ) : (
+              <StatusBadge status="completed" />
+            )}
+          </div>
         }
       />
+
+      {/* Hardware Fault Alert Banner */}
+      {isFaulted && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="border-destructive/60 bg-destructive/10 text-destructive shadow-md">
+            <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
+              <div className="flex items-center gap-2">
+                <OctagonAlert className="h-5 w-5 text-destructive animate-bounce shrink-0" />
+                <div>
+                  <CardTitle className="text-base text-destructive">
+                    Hardware Terminal Fault: {FAULT_DEFINITIONS[telemetry.faultState]?.label || telemetry.faultState || 'OVER_CURRENT'}
+                  </CardTitle>
+                  <p className="text-xs text-destructive/80 mt-1">
+                    {telemetry.faultDetails || FAULT_DEFINITIONS[telemetry.faultState]?.description || 'Emergency contactor trip detected.'}
+                  </p>
+                </div>
+              </div>
+              <StatusBadge status="faulted" />
+            </CardHeader>
+            <CardContent className="space-y-2 text-xs">
+              <p>
+                Physical high-voltage isolation breakers were engaged to safeguard vehicle battery. Operator dispatch has been notified automatically.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {!charging && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -394,12 +476,49 @@ function LiveSession({ session }) {
 
 export default function ActiveSession() {
   const { data, loading, error, refetch } = useQuery(fetchActiveSession, [])
+  const telemetry = useKioskTelemetry()
 
-  if (loading && !data) return <LoadingRows rows={6} />
-  if (error) {
+  const hasTwinActive = Boolean(
+    telemetry &&
+      (['CHARGING', 'PLUGGED', 'FAULTED', 'COMPLETE'].includes(telemetry.kioskState) ||
+        (telemetry.sessionId && telemetry.chargingKwh > 0))
+  )
+
+  const effectiveSession = React.useMemo(() => {
+    if (data) return data
+    if (hasTwinActive) {
+      return {
+        id: telemetry.sessionId || 'cs-twin-live',
+        stationId: telemetry.stationId,
+        station: telemetry.stationName,
+        stationName: telemetry.stationName,
+        connectorId: telemetry.connectorId,
+        connector: telemetry.connectorLabel,
+        charger: `${telemetry.connectorLabel} · ${telemetry.powerKw} kW`,
+        vehicle: telemetry.vehicle || 'Tesla Model 3 Long Range',
+        status: telemetry.kioskState.toLowerCase(),
+        date: telemetry.sessionStartedAt || new Date().toISOString(),
+        startedAt: telemetry.sessionStartedAt || new Date().toISOString(),
+        duration: `${Math.floor((telemetry.elapsedSeconds || 0) / 60)} min`,
+        energyKwh: telemetry.chargingKwh,
+        costSoFar: telemetry.costSoFar,
+        startSoc: telemetry.startSoc,
+        currentSoc: telemetry.currentSoc,
+        targetSoc: telemetry.targetSoc,
+        powerKw: telemetry.powerKw,
+        pricePerKwh: telemetry.pricePerKwh,
+        powerCurve: telemetry.powerCurve || [],
+        isTwinTelemetry: true,
+      }
+    }
+    return null
+  }, [data, hasTwinActive, telemetry])
+
+  if (loading && !effectiveSession) return <LoadingRows rows={6} />
+  if (error && !effectiveSession) {
     return <ErrorState error={error} onRetry={refetch} title="Could not load your session" />
   }
-  if (!data) {
+  if (!effectiveSession) {
     return (
       <EmptyState
         icon={Zap}
@@ -414,5 +533,6 @@ export default function ActiveSession() {
     )
   }
   // Remount when the session changes so the simulation restarts from its state.
-  return <LiveSession key={data.id} session={data} />
+  return <LiveSession key={effectiveSession.id} session={effectiveSession} />
 }
+

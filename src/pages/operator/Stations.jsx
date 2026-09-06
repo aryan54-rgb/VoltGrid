@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Building2, CheckCircle2, Crosshair, Loader2, MapPin, Plus, Star, Zap } from 'lucide-react'
+import { ArrowRight, Building2, CheckCircle2, Crosshair, Loader2, MapPin, Plus, Radio, Star, Zap } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
 import { StationMap } from '@/components/shared/station-map'
@@ -293,6 +293,12 @@ export default function Stations() {
         description="Add sites, set pricing and publish availability."
         actions={
           <>
+            <Button asChild variant="outline" className="gap-1.5 shadow-xs">
+              <Link to="/operator/kiosk">
+                <Radio className="h-4 w-4 text-primary animate-pulse" />
+                Kiosk Simulator
+              </Link>
+            </Button>
             <SearchInput
               placeholder="Search name, address or city…"
               value={query}

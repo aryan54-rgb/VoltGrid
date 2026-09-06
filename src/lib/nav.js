@@ -22,6 +22,7 @@ import {
   Star,
   Plug,
   AlertTriangle,
+  Radio,
 } from 'lucide-react'
 
 export const ROLE_META = {
@@ -59,6 +60,7 @@ export const NAV = {
     { to: '/operator/stations', label: 'Stations', icon: Building2 },
     { to: '/operator/chargers', label: 'Chargers', icon: PlugZap },
     { to: '/operator/connectors', label: 'Connectors', icon: Plug },
+    { to: '/operator/kiosk', label: 'Kiosk Simulator', icon: Radio },
     { to: '/operator/reservations', label: 'Reservations', icon: CalendarClock },
     { to: '/operator/faults', label: 'Fault Queue', icon: AlertTriangle },
     { to: '/operator/revenue', label: 'Revenue', icon: DollarSign },
@@ -67,6 +69,7 @@ export const NAV = {
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
     { to: '/admin/users', label: 'Users', icon: Users },
     { to: '/admin/stations', label: 'Stations', icon: Building2 },
+    { to: '/admin/kiosk', label: 'Kiosk Simulator', icon: Radio },
     { to: '/admin/marketplace', label: 'Marketplace', icon: Store },
     { to: '/admin/reports', label: 'Reports', icon: FileText },
     { to: '/admin/analytics', label: 'Analytics', icon: PieChart },
@@ -120,6 +123,8 @@ export const SRS_MODULES = [
       'Start and stop sessions, monitor energy and cost in real time, and follow the charger state machine fed by the kiosk telemetry emulator.',
     screens: [
       { to: '/driver/session', label: 'Driver · live session' },
+      { to: '/driver/active-session', label: 'Driver · active session telemetry' },
+      { to: '/operator/kiosk', label: 'Operator · kiosk terminal simulator' },
       { to: '/driver/history', label: 'Driver · session history' },
       { to: '/operator/connectors', label: 'Operator · connector state' },
     ],

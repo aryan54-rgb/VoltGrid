@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
   BatteryCharging,
@@ -8,6 +9,7 @@ import {
   MoreHorizontal,
   Plug,
   Loader2,
+  Radio,
 } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
 import { PageHeader } from '@/components/shared/page-header'
@@ -44,6 +46,7 @@ import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQueries } from '@/hooks/use-query'
 import { fetchConnectors, fetchStations, updateConnectorStatus } from '@/lib/api/stations'
+import { useKioskTelemetry } from '@/lib/kiosk-broadcast'
 
 const PAGE_SIZE = 10
 const STATUSES = ['AVAILABLE', 'RESERVED', 'OCCUPIED', 'FAULTED']
@@ -56,7 +59,25 @@ const STATUS_LABEL = {
 
 export default function Connectors() {
   const board = useQueries({ connectors: fetchConnectors, stations: fetchStations })
-  const list = useMemo(() => board.data?.connectors ?? [], [board.data])
+  const telemetry = useKioskTelemetry()
+  const list = useMemo(() => {
+    const raw = board.data?.connectors ?? []
+    if (!telemetry || !telemetry.connectorId) return raw
+    return raw.map((c) => {
+      if (c.id === telemetry.connectorId) {
+        let twinStatus = c.status
+        if (telemetry.kioskState === 'FAULTED') twinStatus = 'FAULTED'
+        else if (['PLUGGED', 'CHARGING'].includes(telemetry.kioskState)) twinStatus = 'OCCUPIED'
+        else if (telemetry.kioskState === 'IDLE') twinStatus = 'AVAILABLE'
+        return {
+          ...c,
+          status: twinStatus,
+          energyTodayKwh: (c.energyTodayKwh || 0) + (telemetry.chargingKwh || 0),
+        }
+      }
+      return c
+    })
+  }, [board.data, telemetry])
   const stations = board.data?.stations ?? []
 
   const [actionError, setActionError] = useState(null)
@@ -128,6 +149,13 @@ export default function Connectors() {
       <PageHeader
         title="Connectors"
         description="Every charging bay you operate — type, power rating and current status."
+        actions={
+          <Button asChild size="sm" variant="outline" className="gap-1.5 shadow-xs">
+            <Link to="/operator/kiosk">
+              <Radio className="h-3.5 w-3.5 text-primary animate-pulse" /> Kiosk Simulator
+            </Link>
+          </Button>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
