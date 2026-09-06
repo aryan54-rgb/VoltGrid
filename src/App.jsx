@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorBoundary } from '@/components/shared/error-boundary'
 import {
   OnboardingRoute,
   PublicOnlyRoute,
@@ -79,7 +80,8 @@ function PageFallback() {
 export default function App() {
   const location = useLocation()
   return (
-    <Suspense fallback={<PageFallback />}>
+    <ErrorBoundary>
+      <Suspense fallback={<PageFallback />}>
       <Routes location={location}>
         {/* public */}
         <Route path="/" element={<Landing />} />
@@ -163,5 +165,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </ErrorBoundary>
   )
 }

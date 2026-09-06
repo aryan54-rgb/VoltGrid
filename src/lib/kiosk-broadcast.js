@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { supabase } from '@/lib/supabase'
 import { updateConnectorStatus } from '@/lib/api/stations'
 import { purchase } from '@/lib/api/wallet'
@@ -225,7 +225,6 @@ export const KioskEngine = {
 
   subscribe(listener) {
     listeners.add(listener)
-    listener(currentState)
     return () => {
       listeners.delete(listener)
     }
@@ -235,17 +234,39 @@ export const KioskEngine = {
     return Boolean(STATE_TRANSITIONS[currentState.kioskState]?.includes(to))
   },
 
-  setStationAndConnector({ stationId, stationName, connectorId, connectorLabel, powerKw, pricePerKwh }) {
-    currentState = {
-      ...currentState,
-      stationId: stationId || currentState.stationId,
-      stationName: stationName || currentState.stationName,
-      connectorId: connectorId || currentState.connectorId,
-      connectorLabel: connectorLabel || currentState.connectorLabel,
-      powerKw: powerKw || currentState.powerKw,
-      pricePerKwh: pricePerKwh != null ? pricePerKwh : currentState.pricePerKwh,
-      updatedAt: Date.now(),
+  setStationAndConnector({ stationId, stationName, connectorId, connectorLabel, powerKw, pricePerKwh } = {}) {
+    let changed = false
+    const next = { ...currentState }
+
+    if (stationId && stationId !== currentState.stationId) {
+      next.stationId = stationId
+      changed = true
     }
+    if (stationName && stationName !== currentState.stationName) {
+      next.stationName = stationName
+      changed = true
+    }
+    if (connectorId && connectorId !== currentState.connectorId) {
+      next.connectorId = connectorId
+      changed = true
+    }
+    if (connectorLabel && connectorLabel !== currentState.connectorLabel) {
+      next.connectorLabel = connectorLabel
+      changed = true
+    }
+    if (powerKw != null && powerKw !== currentState.powerKw) {
+      next.powerKw = powerKw
+      changed = true
+    }
+    if (pricePerKwh != null && pricePerKwh !== currentState.pricePerKwh) {
+      next.pricePerKwh = pricePerKwh
+      changed = true
+    }
+
+    if (!changed) return
+
+    next.updatedAt = Date.now()
+    currentState = next
     broadcastUpdate(currentState, 'config_update')
   },
 
@@ -791,28 +812,37 @@ export const KioskEngine = {
   },
 }
 
+function subscribeToKiosk(onStoreChange) {
+  return KioskEngine.subscribe(onStoreChange)
+}
+
+function getKioskSnapshot() {
+  return KioskEngine.getState()
+}
+
+const kioskActions = {
+  plugCable: () => KioskEngine.plugCable(),
+  unplugCable: () => KioskEngine.unplugCable(),
+  startSession: (options) => KioskEngine.startSession(options),
+  togglePowerStream: (force) => KioskEngine.togglePowerStream(force),
+  simulateHardwareFault: (faultKey) => KioskEngine.simulateHardwareFault(faultKey),
+  emergencyStop: () => KioskEngine.emergencyStop(),
+  stopAndUnplug: () => KioskEngine.stopAndUnplug(),
+  resetFault: () => KioskEngine.resetFault(),
+  setStationAndConnector: (data) => KioskEngine.setStationAndConnector(data),
+  setDriverInfo: (data) => KioskEngine.setDriverInfo(data),
+  setStreamSpeed: (speed) => KioskEngine.setStreamSpeed(speed),
+}
+
 /**
  * Hook for full interactive control of the Kiosk Simulator
  */
 export function useKioskSimulator() {
-  const state = useSyncExternalStore(
-    (onStoreChange) => KioskEngine.subscribe(onStoreChange),
-    () => KioskEngine.getState()
-  )
+  const state = useSyncExternalStore(subscribeToKiosk, getKioskSnapshot)
 
   return {
     state,
-    plugCable: () => KioskEngine.plugCable(),
-    unplugCable: () => KioskEngine.unplugCable(),
-    startSession: (options) => KioskEngine.startSession(options),
-    togglePowerStream: (force) => KioskEngine.togglePowerStream(force),
-    simulateHardwareFault: (faultKey) => KioskEngine.simulateHardwareFault(faultKey),
-    emergencyStop: () => KioskEngine.emergencyStop(),
-    stopAndUnplug: () => KioskEngine.stopAndUnplug(),
-    resetFault: () => KioskEngine.resetFault(),
-    setStationAndConnector: (data) => KioskEngine.setStationAndConnector(data),
-    setDriverInfo: (data) => KioskEngine.setDriverInfo(data),
-    setStreamSpeed: (speed) => KioskEngine.setStreamSpeed(speed),
+    ...kioskActions,
   }
 }
 
@@ -821,13 +851,5 @@ export function useKioskSimulator() {
  * to react to real-time Kiosk Hardware Twin telemetry broadcasts.
  */
 export function useKioskTelemetry() {
-  const [telemetry, setTelemetry] = useState(KioskEngine.getState())
-
-  useEffect(() => {
-    return KioskEngine.subscribe((next) => {
-      setTelemetry(next)
-    })
-  }, [])
-
-  return telemetry
+  return useSyncExternalStore(subscribeToKiosk, getKioskSnapshot)
 }

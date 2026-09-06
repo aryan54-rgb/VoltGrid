@@ -68,9 +68,9 @@ export default function KioskSimulator() {
 
   // When stations load, sync station metadata if available
   useEffect(() => {
-    if (stations.length > 0 && (!state.stationId || state.stationId === 'st-01')) {
+    if (stations.length > 0) {
       const current = stations.find((s) => s.id === state.stationId) || stations[0]
-      if (current) {
+      if (current && (state.stationName !== current.name || state.pricePerKwh !== current.pricePerKwh)) {
         setStationAndConnector({
           stationId: current.id,
           stationName: current.name,
@@ -78,7 +78,7 @@ export default function KioskSimulator() {
         })
       }
     }
-  }, [stations, state.stationId, setStationAndConnector])
+  }, [stations, state.stationId, state.stationName, state.pricePerKwh, setStationAndConnector])
 
   const handleStationChange = (stId) => {
     const st = stations.find((s) => s.id === stId)
@@ -142,20 +142,27 @@ export default function KioskSimulator() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:max-w-2xl">
             <div>
               <span className="text-xs text-muted-foreground block mb-1 font-medium">Station Target</span>
-              <Select value={state.stationId} onValueChange={handleStationChange}>
+              <Select value={state.stationId || 'st-01'} onValueChange={handleStationChange}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select station" />
                 </SelectTrigger>
                 <SelectContent>
                   {stations.length > 0 ? (
-                    stations.map((st) => (
-                      <SelectItem key={st.id} value={st.id} className="text-xs">
-                        {st.name}
-                      </SelectItem>
-                    ))
+                    <>
+                      {stations.map((st) => (
+                        <SelectItem key={st.id} value={st.id} className="text-xs">
+                          {st.name}
+                        </SelectItem>
+                      ))}
+                      {!stations.some((st) => st.id === (state.stationId || 'st-01')) && (
+                        <SelectItem value={state.stationId || 'st-01'} className="text-xs">
+                          {state.stationName || 'Current Station'}
+                        </SelectItem>
+                      )}
+                    </>
                   ) : (
-                    <SelectItem value={state.stationId} className="text-xs">
-                      {state.stationName}
+                    <SelectItem value={state.stationId || 'st-01'} className="text-xs">
+                      {state.stationName || 'Downtown EV Fast Hub'}
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -164,7 +171,7 @@ export default function KioskSimulator() {
             <div>
               <span className="text-xs text-muted-foreground block mb-1 font-medium">Connector Bay</span>
               <Select
-                value={state.connectorId}
+                value={state.connectorId || 'st-01-c11'}
                 onValueChange={(cid) => setStationAndConnector({ connectorId: cid, connectorLabel: cid })}
               >
                 <SelectTrigger className="h-8 text-xs">
@@ -174,6 +181,9 @@ export default function KioskSimulator() {
                   <SelectItem value="st-01-c11" className="text-xs">Bay A1 · CCS2 150 kW</SelectItem>
                   <SelectItem value="st-01-c12" className="text-xs">Bay A2 · CCS2 150 kW</SelectItem>
                   <SelectItem value="st-01-c13" className="text-xs">Bay B1 · CHAdeMO 50 kW</SelectItem>
+                  {!['st-01-c11', 'st-01-c12', 'st-01-c13'].includes(state.connectorId) && state.connectorId && (
+                    <SelectItem value={state.connectorId} className="text-xs">{state.connectorLabel || state.connectorId}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -310,7 +320,7 @@ export default function KioskSimulator() {
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-mono text-zinc-100 tabular-nums">
-                      {isCharging ? state.powerKw : 0}
+                      {isCharging ? (state.powerKw ?? 0) : 0}
                     </span>
                     <span className="text-xs text-zinc-400 font-mono">kW</span>
                   </div>
@@ -324,7 +334,7 @@ export default function KioskSimulator() {
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-mono text-cyan-300 tabular-nums">
-                      {state.chargingKwh.toFixed(2)}
+                      {Number(state.chargingKwh ?? 0).toFixed(2)}
                     </span>
                     <span className="text-xs text-zinc-400 font-mono">kWh</span>
                   </div>
@@ -338,7 +348,7 @@ export default function KioskSimulator() {
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-mono text-amber-300 tabular-nums">
-                      {formatCurrency(state.costSoFar)}
+                      {formatCurrency(state.costSoFar ?? 0)}
                     </span>
                   </div>
                   <span className="text-[10px] text-zinc-500 mt-1">
@@ -353,7 +363,7 @@ export default function KioskSimulator() {
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-mono text-zinc-100 tabular-nums">
-                      {formatDuration(state.elapsedSeconds)}
+                      {formatDuration(state.elapsedSeconds ?? 0)}
                     </span>
                   </div>
                   <span className="text-[10px] text-zinc-500 mt-1">MM:SS active</span>
@@ -367,7 +377,7 @@ export default function KioskSimulator() {
                     <Zap className="h-3.5 w-3.5 text-emerald-400" /> State of Charge (SoC)
                   </span>
                   <span className="text-zinc-100 font-bold tabular-nums">
-                    {state.currentSoc.toFixed(0)}% / Target {state.targetSoc}%
+                    {Number(state.currentSoc ?? 22).toFixed(0)}% / Target {state.targetSoc ?? 80}%
                   </span>
                 </div>
 
@@ -381,14 +391,14 @@ export default function KioskSimulator() {
                         ? 'bg-cyan-400'
                         : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400'
                     }`}
-                    style={{ width: `${Math.min(100, Math.max(5, state.currentSoc))}%` }}
+                    style={{ width: `${Math.min(100, Math.max(5, state.currentSoc ?? 22))}%` }}
                   />
                 </div>
 
                 <div className="flex justify-between items-center text-[10px] text-zinc-400 font-mono pt-1">
-                  <span>Start: {state.startSoc}%</span>
-                  <span>Vehicle: {state.vehicle}</span>
-                  <span>Target: {state.targetSoc}%</span>
+                  <span>Start: {state.startSoc ?? 22}%</span>
+                  <span>Vehicle: {state.vehicle || 'EV'}</span>
+                  <span>Target: {state.targetSoc ?? 80}%</span>
                 </div>
               </div>
 
@@ -396,12 +406,12 @@ export default function KioskSimulator() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-zinc-800/60 text-[11px] font-mono">
                 <div className="text-zinc-400">
                   <span>DC Voltage: </span>
-                  <span className="text-zinc-200 font-semibold tabular-nums">{state.voltage.toFixed(1)} V</span>
+                  <span className="text-zinc-200 font-semibold tabular-nums">{Number(state.voltage ?? 400).toFixed(1)} V</span>
                 </div>
                 <div className="text-zinc-400">
                   <span>Amperage: </span>
                   <span className="text-zinc-200 font-semibold tabular-nums">
-                    {isCharging ? state.current.toFixed(1) : '0.0'} A
+                    {isCharging ? Number(state.current ?? 0).toFixed(1) : '0.0'} A
                   </span>
                 </div>
                 <div className="text-zinc-400">
