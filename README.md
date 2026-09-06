@@ -116,7 +116,7 @@ policies both enforce it — changing the URL does not get you into another work
 | Role | Route | Screens |
 | :--- | :--- | :--- |
 | **Public** | `/` | Landing · SRS module map (`/modules`) · Login · Registration · Password reset |
-| **EV Driver** | `/driver` | Dashboard · Charging Stations · Reservations · Active Session · History · Wallet · Transactions · Report a Fault · Marketplace · Community · Reviews · Notifications · Profile |
+| **EV Driver** | `/driver` | Dashboard · Charging Stations · Reservations · Active Session · History · Wallet · Transactions · Report a Fault · Community · Reviews · Notifications · Profile |
 | **Fleet Manager** | `/fleet` | Dashboard · Vehicles · Drivers · Charging Schedule · Analytics · Billing |
 | **Station Operator** | `/operator` | Dashboard · Stations · Chargers · Connectors · Reservations · Fault Queue · Revenue |
 | **Admin** | `/admin` | Dashboard · Users · Stations · Marketplace · Reports · Analytics · Settings |

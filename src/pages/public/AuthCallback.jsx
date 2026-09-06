@@ -12,9 +12,12 @@ import { useAuth } from '@/context/auth'
  * a first social login, which has a role to pick, and to the portal otherwise.
  */
 export default function AuthCallback() {
-  const { isAuthenticated, role, needsOnboarding, loading } = useAuth()
+  const { isAuthenticated, role, needsOnboarding, loading, acceptAdminInvitation } = useAuth()
   const [params] = useSearchParams()
   const [timedOut, setTimedOut] = useState(false)
+  const isAdminInvite = params.get('admin_invite') === '1'
+  const [invitationHandled, setInvitationHandled] = useState(!isAdminInvite)
+  const [invitationError, setInvitationError] = useState(null)
 
   // Supabase reports provider failures back on the query string.
   const urlError = params.get('error_description') || params.get('error')
@@ -23,6 +26,30 @@ export default function AuthCallback() {
     const timer = setTimeout(() => setTimedOut(true), 8000)
     return () => clearTimeout(timer)
   }, [])
+
+  useEffect(() => {
+    if (!isAdminInvite || !isAuthenticated || invitationHandled) return
+    acceptAdminInvitation()
+      .then(({ error: inviteError }) => setInvitationError(inviteError ?? null))
+      .finally(() => setInvitationHandled(true))
+  }, [acceptAdminInvitation, invitationHandled, isAdminInvite, isAuthenticated])
+
+  if (isAdminInvite && !invitationHandled) return <AuthSplash />
+
+  if (invitationError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+          <AlertCircle className="h-6 w-6" />
+        </span>
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight">Invitation couldn&rsquo;t be accepted</h1>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{invitationError.message}</p>
+        <Button asChild className="mt-8">
+          <Link to="/login">Back to sign in</Link>
+        </Button>
+      </div>
+    )
+  }
 
   if (!urlError && isAuthenticated && needsOnboarding) {
     return <Navigate to="/welcome" replace />

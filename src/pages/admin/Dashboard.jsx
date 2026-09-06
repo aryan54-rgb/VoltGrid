@@ -1,20 +1,26 @@
+import * as React from 'react'
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
 } from 'recharts'
-import { Users, DollarSign, Zap, Activity } from 'lucide-react'
+import { Users, DollarSign, Zap, Activity, Loader2, Mail, UserPlus } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { CHART_COLORS, GRID, axisProps, ChartTooltip, ChartCard, ChartLegend } from '@/components/shared/chart'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ErrorState, LoadingCards, LoadingRows } from '@/components/shared/query-state'
 import { useQueries } from '@/hooks/use-query'
 import { fetchUsers } from '@/lib/api/users'
 import { fetchPlatformGrowth, fetchRevenueBySegment } from '@/lib/api/analytics'
 import { fetchStations } from '@/lib/api/stations'
+import { fetchAdminInvitations, inviteAdmin } from '@/lib/api/admin-invitations'
 import { formatDate, formatNumber } from '@/lib/utils'
 
 /** Core platform services and their rolling 30-day availability. */
@@ -37,10 +43,40 @@ export default function Dashboard() {
     growth: fetchPlatformGrowth,
     segments: fetchRevenueBySegment,
     stations: fetchStations,
+    invitations: fetchAdminInvitations,
   })
   const platformGrowth = query.data?.growth ?? []
   const revenueBySegment = query.data?.segments ?? []
   const stations = query.data?.stations ?? []
+  const invitations = query.data?.invitations ?? []
+  const [inviteOpen, setInviteOpen] = React.useState(false)
+  const [inviteEmail, setInviteEmail] = React.useState('')
+  const [inviteBusy, setInviteBusy] = React.useState(false)
+  const [inviteError, setInviteError] = React.useState(null)
+  const [inviteSent, setInviteSent] = React.useState(null)
+
+  async function sendInvite() {
+    setInviteError(null)
+    setInviteBusy(true)
+    try {
+      const invitation = await inviteAdmin(inviteEmail)
+      setInviteSent(invitation.email)
+      query.refetch()
+    } catch (err) {
+      setInviteError(err)
+    } finally {
+      setInviteBusy(false)
+    }
+  }
+
+  function closeInvite(open) {
+    setInviteOpen(open)
+    if (!open) {
+      setInviteEmail('')
+      setInviteError(null)
+      setInviteSent(null)
+    }
+  }
 
   /** Five newest accounts across the network. */
   const recentSignups = [...(query.data?.users ?? [])]
@@ -70,6 +106,11 @@ export default function Dashboard() {
       <PageHeader
         title="Admin dashboard"
         description="Network-wide growth, revenue and platform health."
+        actions={
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus /> Invite New Admin
+          </Button>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -279,6 +320,83 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Admin invitations</CardTitle>
+          <CardDescription>Pending and accepted administrator invitations.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {invitations.length === 0 ? (
+            <p className="px-6 pb-6 text-sm text-muted-foreground">No admin invitations have been sent.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Sent</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invitations.map((invitation) => (
+                  <TableRow key={invitation.id}>
+                    <TableCell className="font-medium">{invitation.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(invitation.createdAt)}</TableCell>
+                    <TableCell>
+                      <Badge variant={invitation.status === 'ACCEPTED' ? 'secondary' : 'outline'}>
+                        {invitation.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={inviteOpen} onOpenChange={closeInvite}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite new admin</DialogTitle>
+            <DialogDescription>
+              We&rsquo;ll email a secure magic link that activates administrator access for this address.
+            </DialogDescription>
+          </DialogHeader>
+          {inviteSent ? (
+            <div className="rounded-lg border border-[var(--status-good)]/40 bg-[var(--status-good)]/5 p-4 text-sm">
+              Invitation sent to <span className="font-medium">{inviteSent}</span>.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="admin-invite-email">Email address</Label>
+              <Input
+                id="admin-invite-email"
+                type="email"
+                autoComplete="email"
+                placeholder="admin@example.com"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+              />
+              {inviteError && <p className="text-sm text-destructive">{inviteError.message}</p>}
+            </div>
+          )}
+          <DialogFooter>
+            {inviteSent ? (
+              <Button onClick={() => closeInvite(false)}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => closeInvite(false)}>Cancel</Button>
+                <Button disabled={!inviteEmail.includes('@') || inviteBusy} onClick={sendInvite}>
+                  {inviteBusy ? <Loader2 className="animate-spin" /> : <Mail />}
+                  Send invitation
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -29,7 +29,6 @@ const DriverActiveSession = lazy(() => import('@/pages/driver/ActiveSession'))
 const DriverHistory = lazy(() => import('@/pages/driver/History'))
 const DriverWallet = lazy(() => import('@/pages/driver/Wallet'))
 const DriverTransactions = lazy(() => import('@/pages/driver/Transactions'))
-const DriverMarketplace = lazy(() => import('@/pages/driver/Marketplace'))
 const DriverCommunity = lazy(() => import('@/pages/driver/Community'))
 const DriverReviews = lazy(() => import('@/pages/driver/Reviews'))
 const DriverFaults = lazy(() => import('@/pages/driver/Faults'))
@@ -116,7 +115,6 @@ export default function App() {
           <Route path="/driver/history" element={<DriverHistory />} />
           <Route path="/driver/wallet" element={<DriverWallet />} />
           <Route path="/driver/transactions" element={<DriverTransactions />} />
-          <Route path="/driver/marketplace" element={<DriverMarketplace />} />
           <Route path="/driver/community" element={<DriverCommunity />} />
           <Route path="/driver/reviews" element={<DriverReviews />} />
           <Route path="/driver/faults" element={<DriverFaults />} />

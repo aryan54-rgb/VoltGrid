@@ -5,7 +5,6 @@ import {
   History,
   Wallet,
   Receipt,
-  ShoppingBag,
   Users,
   Bell,
   UserCircle,
@@ -42,7 +41,6 @@ export const NAV = {
     { to: '/driver/wallet', label: 'Wallet', icon: Wallet },
     { to: '/driver/transactions', label: 'Transactions', icon: Receipt },
     { to: '/driver/faults', label: 'Report a Fault', icon: Wrench },
-    { to: '/driver/marketplace', label: 'Marketplace', icon: ShoppingBag },
     { to: '/driver/community', label: 'Community', icon: Users },
     { to: '/driver/reviews', label: 'Reviews & Ratings', icon: Star },
     { to: '/driver/notifications', label: 'Notifications', icon: Bell },
@@ -173,9 +171,8 @@ export const SRS_MODULES = [
   {
     id: 'marketplace',
     name: 'Marketplace',
-    summary: 'Accessories and charging hardware offered to drivers, curated and managed by the platform.',
+    summary: 'Accessories and charging hardware catalogue curated and managed by the platform.',
     screens: [
-      { to: '/driver/marketplace', label: 'Driver · marketplace' },
       { to: '/admin/marketplace', label: 'Admin · catalogue management' },
     ],
   },

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertCircle, Building2, Check, Loader2, Truck, UserCircle, Zap } from 'lucide-react'
+import { AlertCircle, Building2, Check, Loader2, Truck, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,12 +35,6 @@ const roles = [
     label: 'Station Operator',
     icon: Building2,
     blurb: 'Monitor stations and bays, work faults, watch revenue.',
-  },
-  {
-    key: 'admin',
-    label: 'Admin',
-    icon: UserCircle,
-    blurb: 'Oversee accounts, the station estate and platform reporting.',
   },
 ]
 

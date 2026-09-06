@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase'
  */
 const AuthContext = React.createContext(null)
 
-const ROLES = ['driver', 'fleet', 'operator', 'admin']
+const PUBLIC_SIGNUP_ROLES = ['driver', 'fleet', 'operator']
 
 export function AuthProvider({ children }) {
   const [session, setSession] = React.useState(null)
@@ -112,7 +112,7 @@ export function AuthProvider({ children }) {
       password,
       options: {
         // Read back by the `handle_new_user` trigger to seed the profile row.
-        data: { full_name: name, role: ROLES.includes(role) ? role : 'driver' },
+        data: { full_name: name, role: PUBLIC_SIGNUP_ROLES.includes(role) ? role : 'driver' },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
@@ -192,6 +192,15 @@ export function AuthProvider({ children }) {
     [userId]
   )
 
+  /** Accepts an invitation after its one-time magic link establishes a session. */
+  const acceptAdminInvitation = React.useCallback(async () => {
+    if (!userId) return { error: new Error('Not signed in') }
+    const { data, error: inviteError } = await supabase.rpc('accept_admin_invitation')
+    if (inviteError) return { error: inviteError }
+    if (data) setProfile(data)
+    return { data }
+  }, [userId])
+
   const value = React.useMemo(
     () => ({
       session,
@@ -221,6 +230,7 @@ export function AuthProvider({ children }) {
       updatePassword,
       updateProfile,
       completeOnboarding,
+      acceptAdminInvitation,
       refreshProfile,
     }),
     [
@@ -237,6 +247,7 @@ export function AuthProvider({ children }) {
       updatePassword,
       updateProfile,
       completeOnboarding,
+      acceptAdminInvitation,
       refreshProfile,
     ]
   )

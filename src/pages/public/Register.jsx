@@ -7,10 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ROLE_META } from '@/lib/nav'
 import { useAuth } from '@/context/auth'
 
-const roleOptions = Object.entries(ROLE_META).map(([key, meta]) => ({ key, ...meta }))
+const roleOptions = [
+  { key: 'driver', label: 'EV Driver' },
+  { key: 'operator', label: 'Station Operator' },
+  { key: 'fleet', label: 'Fleet Manager' },
+]
 
 export default function Register() {
   const { signUp } = useAuth()

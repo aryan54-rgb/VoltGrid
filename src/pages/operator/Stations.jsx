@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Building2, CheckCircle2, Crosshair, MapPin, Plus, Star, Zap } from 'lucide-react'
+import { ArrowRight, Building2, CheckCircle2, Crosshair, Loader2, MapPin, Plus, Star, Zap } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
-import { MapPlaceholder } from '@/components/shared/map-placeholder'
+import { StationMap } from '@/components/shared/station-map'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -62,10 +62,34 @@ function coordinateError(latitude, longitude) {
 }
 
 /** The two coordinate fields, shared by the add and the manage dialog. */
-function CoordinateFields({ idPrefix, latitude, longitude, onChange, error }) {
+function CoordinateFields({
+  idPrefix,
+  latitude,
+  longitude,
+  onChange,
+  error,
+  onUseCurrentLocation,
+  isDetecting = false,
+  geoError = null,
+}) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={`${idPrefix}-lat`}>Coordinates</Label>
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={`${idPrefix}-lat`}>Coordinates</Label>
+        {onUseCurrentLocation && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+            onClick={onUseCurrentLocation}
+            disabled={isDetecting}
+          >
+            {isDetecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
+            {isDetecting ? 'Detecting...' : 'Use current location'}
+          </Button>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
           id={`${idPrefix}-lat`}
@@ -102,6 +126,7 @@ function CoordinateFields({ idPrefix, latitude, longitude, onChange, error }) {
           getting right -- leave both blank until the site has been surveyed.
         </p>
       )}
+      {geoError && <p className="text-xs text-rose-500 dark:text-rose-400">{geoError}</p>}
     </div>
   )
 }
@@ -119,6 +144,8 @@ export default function Stations() {
   const [addOpen, setAddOpen] = useState(false)
   const [addDone, setAddDone] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [geoError, setGeoError] = useState(null)
 
   // Manage dialog
   const [managing, setManaging] = useState(null)
@@ -167,7 +194,39 @@ export default function Stations() {
     if (!open) {
       setAddDone(false)
       setForm(BLANK_FORM)
+      setIsDetecting(false)
+      setGeoError(null)
     }
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoError('Location detection is not supported by this browser.')
+      return
+    }
+
+    setGeoError(null)
+    setIsDetecting(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((f) => ({
+          ...f,
+          latitude: position.coords.latitude.toFixed(7),
+          longitude: position.coords.longitude.toFixed(7),
+        }))
+        setIsDetecting(false)
+      },
+      (error) => {
+        const messages = {
+          1: 'Location access was denied. Allow location access and try again.',
+          2: 'Your location could not be determined. Please try again or enter coordinates manually.',
+          3: 'Location detection timed out. Please try again or enter coordinates manually.',
+        }
+        setGeoError(messages[error.code] ?? 'Location detection failed. Please enter coordinates manually.')
+        setIsDetecting(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   const addStation = async () => {
@@ -249,9 +308,9 @@ export default function Stations() {
       />
 
       <div className="space-y-2">
-        <MapPlaceholder
+        <StationMap
+          stations={stations}
           height={320}
-          markers={markers}
           selectedId={selectedId}
           onSelect={(m) => setSelectedId(m.id === selectedId ? null : m.id)}
         />
@@ -456,7 +515,13 @@ export default function Stations() {
                   latitude={form.latitude}
                   longitude={form.longitude}
                   error={addCoordError}
-                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  onChange={(patch) => {
+                    setGeoError(null)
+                    setForm((f) => ({ ...f, ...patch }))
+                  }}
+                  onUseCurrentLocation={handleUseCurrentLocation}
+                  isDetecting={isDetecting}
+                  geoError={geoError}
                 />
                 <div className="space-y-1.5">
                   <Label htmlFor="st-connectors">Connectors</Label>
