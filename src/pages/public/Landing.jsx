@@ -1,659 +1,523 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, CartesianGrid,
-} from 'recharts'
 import {
   Zap,
   Sun,
   Moon,
   ArrowRight,
-  Car,
-  Truck,
-  Building2,
-  ShieldCheck,
-  MapPin,
-  CalendarClock,
+  Cpu,
+  Activity,
+  Layers,
+  Lock,
   Wallet,
-  BarChart3,
-  LifeBuoy,
-  Search,
-  PlugZap,
-  Check,
+  CalendarCheck,
   Quote,
-  TrendingUp,
-  Sparkles,
+  CheckCircle2,
+  Menu,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CHART_COLORS, GRID, axisProps } from '@/components/shared/chart'
 import { useTheme } from '@/context/theme'
-import { ROLE_META } from '@/lib/nav'
-import { cn } from '@/lib/utils'
 
-const fadeUp = {
-  initial: { opacity: 0, y: 12 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: '-60px' },
-}
+// Import our modular cyber-energy landing components
+import { EnergyBackground } from '@/components/landing/EnergyBackground'
+import { HeroSection } from '@/components/landing/HeroSection'
+import { NetworkTicker } from '@/components/landing/NetworkTicker'
+import { RoleTabsSection } from '@/components/landing/RoleTabsSection'
+import { KioskTelemetryDemo } from '@/components/landing/KioskTelemetryDemo'
+import { PricingSection } from '@/components/landing/PricingSection'
 
-const heroSeries = [
-  { label: 'Mon', energy: 32 },
-  { label: 'Tue', energy: 41 },
-  { label: 'Wed', energy: 38 },
-  { label: 'Thu', energy: 52 },
-  { label: 'Fri', energy: 61 },
-  { label: 'Sat', energy: 54 },
-  { label: 'Sun', energy: 68 },
-]
+const LOGOS = ['Northwind Mobility', 'Helio Transit', 'Arcadia Logistics', 'Beacon Fleet', 'Orbit Rideshare']
 
-const logos = ['Northwind Mobility', 'Helio Transit', 'Arcadia Logistics', 'Beacon Fleet', 'Orbit Rideshare']
-
-const features = [
+const CORE_CAPABILITIES = [
   {
-    icon: MapPin,
-    title: 'Live availability',
-    body: 'See which bays are free right now, with connector type, power output and price before you drive over.',
+    icon: Cpu,
+    title: 'OCPP 2.0.1 Native Gateway',
+    description:
+      'Universal hardware compatibility. Connect ABB, Tritium, Schneider, and custom EVSE kiosks without proprietary vendor lock-in.',
+    badge: 'Hardware Agnostic',
   },
   {
-    icon: CalendarClock,
-    title: 'Slot booking',
-    body: 'Reserve a charger for a time window and arrive knowing the bay is held for you.',
+    icon: Activity,
+    title: 'Sub-Second Cloud Telemetry',
+    description:
+      'Stream voltage, current, power factor, and thermal dissipation metrics at millisecond frequencies directly to your monitoring dashboards.',
+    badge: '< 150ms Latency',
   },
   {
-    icon: Truck,
-    title: 'Fleet management',
-    body: 'Schedule depot charging, track cost per vehicle and keep every van on the road.',
+    icon: Layers,
+    title: 'Dynamic Phase Load Balancing',
+    description:
+      'Intelligent grid curtailment algorithm automatically redistributes power across active bays to prevent costly utility demand spikes.',
+    badge: 'Eco-Grid Peak Shaving',
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Contactor-Guaranteed Reservations',
+    description:
+      'Drivers hold bays in advance. Automated hardware relays lock out unreserved vehicles until the verified driver arrives and scans in.',
+    badge: 'Zero Bay Collisions',
   },
   {
     icon: Wallet,
-    title: 'Wallet payments',
-    body: 'Top up once and pay per session, or move a business account onto consolidated monthly invoicing.',
+    title: 'Split-Settlement Wallet Engine',
+    description:
+      'Unified billing orchestrates driver wallet debits, operator revenue splits, and tax compliance automatically on session completion.',
+    badge: 'Instant Payouts',
   },
   {
-    icon: BarChart3,
-    title: 'Analytics',
-    body: 'Revenue, utilisation and energy mix across every site, refreshed as sessions complete.',
-  },
-  {
-    icon: LifeBuoy,
-    title: '24/7 support',
-    body: 'Report a fault from the charger screen and reach a real engineer at any hour.',
+    icon: Lock,
+    title: 'ISO 15118 Encrypted Handshake',
+    description:
+      'End-to-end TLS 1.3 cryptographic key exchange ensures Plug & Charge vehicle authentication with zero risk of connector spoofing.',
+    badge: 'Bank-Grade Security',
   },
 ]
 
-const steps = [
-  {
-    icon: Search,
-    title: 'Find a charger',
-    body: 'Search the map by connector, speed and price, and filter to what your car actually supports.',
-  },
-  {
-    icon: CalendarClock,
-    title: 'Book your slot',
-    body: 'Pick a time that suits you. We hold the bay and send a reminder before it starts.',
-  },
-  {
-    icon: PlugZap,
-    title: 'Plug in and go',
-    body: 'Start the session from your phone, watch it live, and pay automatically when it ends.',
-  },
-]
-
-const stats = [
-  { value: '12,400+', label: 'Chargers on the network' },
-  { value: '99.2%', label: 'Average network uptime' },
-  { value: '45M', label: 'kWh delivered' },
-  { value: '120k', label: 'Drivers charging monthly' },
-]
-
-const roleIcons = {
-  driver: Car,
-  fleet: Truck,
-  operator: Building2,
-  admin: ShieldCheck,
-}
-
-const roleBlurbs = {
-  driver: 'Find stations, book a slot, run a session and pay from your wallet.',
-  fleet: 'Schedule vehicle charging, watch cost per mile and settle one monthly invoice.',
-  operator: 'Run your sites: connector health, reservations, pricing and revenue.',
-  admin: 'Oversee the whole network — users, stations, growth and platform health.',
-}
-
-const testimonials = [
+const TESTIMONIALS = [
   {
     quote:
-      'We moved 90 vans onto VoltGrid and cut our energy bill by 18% in a quarter. Depot scheduling alone paid for it.',
+      'We migrated 90 delivery vans onto VoltGrid and slashed our depot electricity bill by 28%. The automated off-peak night scheduling alone paid for the system within two months.',
     name: 'Sofia Marino',
-    role: 'Head of Fleet, Swift Logistics',
+    role: 'Head of Fleet Operations, Swift Logistics',
+    metric: '-28% Fleet Energy Cost',
   },
   {
     quote:
-      'Utilisation across our twelve sites is finally visible in one place. Pricing changes that used to take a week now take an afternoon.',
+      'Real-time digital twin monitoring transformed our portfolio. We now catch connector latch faults before drivers even report them, maintaining a 99.8% uptime across all our fast hubs.',
     name: 'Amara Diallo',
-    role: 'Network Operator, CityCharge',
+    role: 'Managing Director, CityCharge Infrastructure',
+    metric: '99.8% Station Availability',
   },
   {
     quote:
-      'I book a bay on the way home and it is always free when I arrive. I have not queued for a charger in months.',
+      'I commute 40 miles daily. Reserving my bay on the way into the city guarantees I never waste time queuing. The live battery curve on my phone is unbelievably responsive.',
     name: 'Jordan Lee',
-    role: 'EV driver, San Francisco',
+    role: 'EV Driver & Daily Commuter, San Francisco',
+    metric: 'Zero Queuing Time',
   },
 ]
 
-const tiers = [
+const FOOTER_COLUMNS = [
   {
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    description: 'For drivers who charge now and then.',
-    features: [
-      'Search every station on the network',
-      'One active reservation at a time',
-      'Pay per session from your wallet',
-      'Charging history and receipts',
+    title: 'Platform',
+    links: [
+      { label: 'Network Map', href: '/driver/stations' },
+      { label: 'Kiosk Simulator', href: '/operator/kiosk' },
+      { label: 'Role Features', href: '#solutions' },
+      { label: 'Pricing Plans', href: '#pricing' },
+      { label: 'Architecture Modules', href: '/modules' },
     ],
-    cta: 'Get started',
-    to: '/register',
-    highlighted: false,
   },
   {
-    name: 'Plus',
-    price: '$9.99',
-    period: 'per month',
-    description: 'For people who drive electric every day.',
-    features: [
-      'Everything in Free',
-      'Unlimited advance bookings',
-      '10% off every kWh you charge',
-      'Priority support and free cancellations',
-      'Member pricing in the marketplace',
+    title: 'Stakeholders',
+    links: [
+      { label: 'For EV Drivers', href: '/register?role=driver' },
+      { label: 'For Station Operators', href: '/register?role=operator' },
+      { label: 'For Commercial Fleets', href: '/register?role=fleet' },
+      { label: 'For Hardware Manufacturers', href: '#features' },
     ],
-    cta: 'Start free trial',
-    to: '/register',
-    highlighted: true,
   },
   {
-    name: 'Business',
-    price: 'Custom',
-    period: 'billed annually',
-    description: 'For fleets and station operators.',
-    features: [
-      'Fleet dashboard and depot scheduling',
-      'Consolidated monthly invoicing',
-      'Role-based access for your team',
-      'API access and webhooks',
-      'Dedicated account manager',
+    title: 'Standards & Protocols',
+    links: [
+      { label: 'OCPP 2.0.1 & 1.6J', href: '#features' },
+      { label: 'ISO 15118 Plug & Charge', href: '#features' },
+      { label: 'OpenADR 2.0b Demand Response', href: '#features' },
+      { label: 'API & Webhooks', href: '/modules' },
     ],
-    cta: 'Contact sales',
-    to: '/register',
-    highlighted: false,
+  },
+  {
+    title: 'Company & Trust',
+    links: [
+      { label: 'System Status (99.9%)', href: '#' },
+      { label: 'Security & Encryption', href: '#' },
+      { label: 'Privacy Policy', href: '#' },
+      { label: 'Contact Engineering', href: '#' },
+    ],
   },
 ]
-
-const footerColumns = [
-  { title: 'Product', links: ['Features', 'Network map', 'Pricing', 'Mobile app', 'Changelog'] },
-  { title: 'Solutions', links: ['For drivers', 'For fleets', 'For operators', 'For property owners'] },
-  { title: 'Company', links: ['About', 'Careers', 'Press', 'Contact'] },
-  { title: 'Resources', links: ['Documentation', 'API reference', 'Support centre', 'Status', 'Privacy'] },
-]
-
-function Logo() {
-  return (
-    <Link to="/" className="flex items-center gap-2">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm">
-        <Zap className="h-4 w-4" fill="currentColor" />
-      </span>
-      <span className="text-base font-semibold tracking-tight text-foreground">VoltGrid</span>
-    </Link>
-  )
-}
 
 function Navbar() {
   const { theme, setTheme } = useTheme()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
+    <header className="fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-[#060A14]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-8">
-          <Logo />
-          <nav className="hidden items-center gap-6 md:flex">
-            <a href="#features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              Features
-            </a>
-            <a href="#network" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              Network
-            </a>
-            <a href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              Pricing
-            </a>
-            <Link to="/modules" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              Modules
-            </Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-transform group-hover:scale-105">
+            <Zap className="h-5 w-5 font-black fill-current" />
+          </span>
+          <div className="flex flex-col">
+            <span className="text-base font-extrabold tracking-tight text-white flex items-center gap-1">
+              VoltGrid <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">SaaS</span>
+            </span>
+          </div>
+        </Link>
+
+        {/* Desktop Nav Links */}
+        <nav className="hidden items-center gap-7 md:flex">
+          <a href="#solutions" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
+            Solutions
+          </a>
+          <a href="#telemetry-demo" className="text-xs font-medium text-slate-300 transition-colors hover:text-cyan-400">
+            Hardware Sandbox
+          </a>
+          <a href="#features" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
+            Capabilities
+          </a>
+          <a href="#pricing" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
+            Pricing
+          </a>
+          <Link to="/modules" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
+            Modules
+          </Link>
+        </nav>
+
+        {/* Header Actions */}
+        <div className="flex items-center gap-2.5">
           <Button
             variant="ghost"
             size="icon"
             aria-label="Toggle theme"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="text-slate-300 hover:text-white hover:bg-white/5"
           >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {theme === 'dark' ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" asChild className="hidden sm:inline-flex">
-            <Link to="/login">Log in</Link>
+
+          <Button variant="ghost" asChild className="hidden text-xs font-medium text-slate-200 hover:text-white hover:bg-white/5 sm:inline-flex">
+            <Link to="/login">Sign In</Link>
           </Button>
-          <Button asChild>
-            <Link to="/register">Get started</Link>
+
+          <Button
+            asChild
+            className="rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-600 px-4 text-xs font-semibold text-white shadow-emerald-glow hover:shadow-[0_0_25px_rgba(16,185,129,0.5)]"
+          >
+            <Link to="/register">Launch Console</Link>
           </Button>
+
+          {/* Mobile hamburger toggle */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-slate-300 hover:text-white md:hidden"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
-    </header>
-  )
-}
 
-function HeroPreview() {
-  return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-2xl shadow-emerald-500/5">
-      {/* browser chrome */}
-      <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2.5">
-        <span className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
-          <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
-          <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
-        </span>
-        <span className="mx-auto rounded-md bg-background px-3 py-1 text-[11px] text-muted-foreground">
-          app.voltgrid.com/network
-        </span>
-      </div>
-
-      <div className="space-y-4 p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Network overview</p>
-            <p className="text-xs text-muted-foreground">Last 7 days</p>
-          </div>
-          <Badge variant="success" className="text-[11px]">
-            <TrendingUp /> +12.4%
-          </Badge>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Energy', value: '346 MWh' },
-            { label: 'Sessions', value: '18,204' },
-            { label: 'Uptime', value: '99.2%' },
-          ].map((tile) => (
-            <div key={tile.label} className="rounded-lg border bg-background/60 p-3">
-              <p className="text-[11px] text-muted-foreground">{tile.label}</p>
-              <p className="mt-1 text-sm font-semibold tabular-nums sm:text-base">{tile.value}</p>
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="border-b border-white/10 bg-[#070D1A] px-5 py-4 md:hidden">
+          <nav className="flex flex-col gap-3">
+            <a
+              href="#solutions"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-slate-200 py-1"
+            >
+              Solutions
+            </a>
+            <a
+              href="#telemetry-demo"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-cyan-300 py-1"
+            >
+              Hardware Sandbox
+            </a>
+            <a
+              href="#features"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-slate-200 py-1"
+            >
+              Capabilities
+            </a>
+            <a
+              href="#pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-slate-200 py-1"
+            >
+              Pricing
+            </a>
+            <Link
+              to="/modules"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-slate-200 py-1"
+            >
+              Modules
+            </Link>
+            <div className="mt-3 flex gap-2 border-t border-white/10 pt-3">
+              <Button asChild variant="outline" className="flex-1 text-xs">
+                <Link to="/login">Sign In</Link>
+              </Button>
+              <Button asChild className="flex-1 bg-emerald-500 text-xs font-bold text-slate-950">
+                <Link to="/register">Get Started</Link>
+              </Button>
             </div>
-          ))}
+          </nav>
         </div>
-
-        <div className="h-[150px] w-full [&_.recharts-surface]:outline-none">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={heroSeries} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
-              <defs>
-                <linearGradient id="landingHeroEnergy" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
-                  <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
-              <XAxis dataKey="label" {...axisProps} />
-              <Area
-                type="monotone"
-                dataKey="energy"
-                name="Energy"
-                stroke={CHART_COLORS[0]}
-                strokeWidth={2}
-                fill="url(#landingHeroEnergy)"
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SectionHeading({ eyebrow, title, description, className }) {
-  return (
-    <motion.div {...fadeUp} transition={{ duration: 0.5 }} className={cn('mx-auto max-w-2xl text-center', className)}>
-      {eyebrow && <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{eyebrow}</p>}
-      <h2 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h2>
-      {description && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{description}</p>}
-    </motion.div>
+      )}
+    </header>
   )
 }
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-[#070A12] text-slate-100 selection:bg-emerald-500/30 selection:text-white">
+      {/* Sticky Translucent Navbar */}
       <Navbar />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-emerald-500/10 via-transparent to-transparent"
-          aria-hidden="true"
-        />
-        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-20 sm:px-6 lg:pb-24 lg:pt-24">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mx-auto max-w-3xl text-center"
-          >
-            <Badge variant="outline" className="mb-5 rounded-full px-3 py-1 text-xs font-normal">
-              <Sparkles /> Now live in 40 cities
-            </Badge>
-            <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              Charging that keeps every EV moving
-            </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              VoltGrid connects drivers, fleets and station operators on one network. Find a charger, reserve
-              the bay, run the session and settle up — without leaving the app.
+      {/* Ambient Electric Energy Background */}
+      <EnergyBackground />
+
+      <main className="relative z-10">
+        {/* Section 1: Hero Section with Live SaaS Preview */}
+        <HeroSection />
+
+        {/* Section 2: Continuous Auto-scrolling Network Stats Ticker */}
+        <NetworkTicker />
+
+        {/* Brand Logos Bar */}
+        <section className="relative border-b border-white/10 bg-[#060911]/60 py-8 backdrop-blur-sm">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <p className="text-center font-mono text-[11px] uppercase tracking-widest text-slate-500">
+              Trusted by Progressive Fleet & Charging Networks
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" asChild>
-                <Link to="/register">
-                  Get started free
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link to="/login">Log in</Link>
-              </Button>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+              {LOGOS.map((name, i) => (
+                <span
+                  key={i}
+                  className="font-mono text-xs font-semibold text-slate-400/80 transition-colors hover:text-emerald-400"
+                >
+                  {name}
+                </span>
+              ))}
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">No card required · Cancel any time</p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-            className="mx-auto mt-14 max-w-4xl"
-          >
-            <HeroPreview />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Logos */}
-      <section className="border-y bg-muted/30">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <motion.p {...fadeUp} transition={{ duration: 0.4 }} className="text-center text-xs uppercase tracking-wider text-muted-foreground">
-            Powering charging for
-          </motion.p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {logos.map((name, i) => (
-              <motion.span
-                key={name}
-                {...fadeUp}
-                transition={{ duration: 0.4, delay: i * 0.05 }}
-                className="text-sm font-semibold tracking-tight text-muted-foreground/70"
-              >
-                {name}
-              </motion.span>
-            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 lg:py-24">
-        <SectionHeading
-          eyebrow="Features"
-          title="Everything a charging network needs"
-          description="One platform for the driver at the plug, the manager watching the depot and the operator running the sites."
-        />
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f, i) => (
-            <motion.div
-              key={f.title}
-              {...fadeUp}
-              transition={{ duration: 0.4, delay: i * 0.06 }}
-              whileHover={{ y: -2 }}
-              className="rounded-xl border bg-card p-5 shadow-sm"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <f.icon className="h-5 w-5" />
-              </span>
-              <h3 className="mt-4 text-sm font-medium">{f.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+        {/* Section 3: Role-Based Feature Tabs (Drivers, Operators, Fleet Managers) */}
+        <RoleTabsSection />
 
-      {/* How it works */}
-      <section className="border-y bg-muted/30 py-16 lg:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <SectionHeading
-            eyebrow="How it works"
-            title="Charged in three steps"
-            description="From opening the app to unplugging, the whole trip takes a couple of taps."
-          />
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {steps.map((s, i) => (
-              <motion.div
-                key={s.title}
-                {...fadeUp}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="rounded-xl border bg-card p-6 shadow-sm"
+        {/* Section 4: Live Kiosk & Telemetry Interactive Hardware Twin Widget */}
+        <KioskTelemetryDemo />
+
+        {/* Section 5: Core Enterprise Capabilities Grid */}
+        <section id="features" className="relative scroll-mt-24 py-20 lg:py-28">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="mx-auto max-w-3xl text-center">
+              <Badge
+                variant="outline"
+                className="mb-3 border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <s.icon className="h-5 w-5" />
+                Core Architecture
+              </Badge>
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
+                Engineered for High-Voltage{' '}
+                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  Reliability
+                </span>
+              </h2>
+              <p className="mt-4 text-base text-slate-400 sm:text-lg">
+                VoltGrid bridges cloud software with mission-critical power electronics. Built on open standards with
+                zero vendor lock-in.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {CORE_CAPABILITIES.map((cap, i) => {
+                const Icon = cap.icon
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={{ y: -4 }}
+                    transition={{ duration: 0.25 }}
+                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0A101D]/90 p-6 backdrop-blur-xl transition-all duration-300 hover:border-emerald-500/40 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/30 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <Badge className="border-white/10 bg-[#0E1626] font-mono text-[10px] text-slate-400">
+                        {cap.badge}
+                      </Badge>
+                    </div>
+
+                    <h3 className="mt-5 text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      {cap.title}
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-400">{cap.description}</p>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 6: Customer Testimonials & Verified Metrics */}
+        <section className="relative border-y border-white/10 bg-[#060911]/80 py-20 lg:py-28 backdrop-blur-md">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="mx-auto max-w-2xl text-center">
+              <Badge
+                variant="outline"
+                className="mb-3 border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-300"
+              >
+                Validated Impact
+              </Badge>
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Trusted Across Kilowatts & Miles
+              </h2>
+            </div>
+
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {TESTIMONIALS.map((t, idx) => (
+                <div
+                  key={idx}
+                  className="relative flex flex-col justify-between rounded-2xl border border-white/10 bg-[#0B1220]/90 p-6 backdrop-blur-xl shadow-lg"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Quote className="h-6 w-6 text-emerald-400/40" />
+                      <Badge className="border-emerald-500/40 bg-emerald-950/40 text-[10px] font-mono text-emerald-300">
+                        {t.metric}
+                      </Badge>
+                    </div>
+                    <p className="mt-4 text-xs leading-relaxed text-slate-300 italic sm:text-sm">
+                      &ldquo;{t.quote}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="mt-6 border-t border-white/10 pt-4">
+                    <p className="text-xs font-bold text-white">{t.name}</p>
+                    <p className="text-[11px] text-slate-400">{t.role}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 7: Modern Pricing & Role Onboarding Cards */}
+        <PricingSection />
+
+        {/* Section 8: High-Impact Conversion Banner */}
+        <section className="relative py-16 lg:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/40 bg-gradient-to-b from-[#0C172B] to-[#070D18] p-8 text-center shadow-2xl backdrop-blur-2xl sm:p-14">
+              {/* Internal glowing orbs */}
+              <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+              <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
+
+              <div className="relative z-10 mx-auto max-w-2xl">
+                <Badge className="mb-4 border-emerald-400/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300">
+                  ⚡ 5-Minute Onboarding
+                </Badge>
+                <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-5xl">
+                  Ready to Plug Into the Cyber Grid?
+                </h2>
+                <p className="mt-4 text-sm leading-relaxed text-slate-300 sm:text-base">
+                  Join thousands of drivers, station operators, and fleet managers orchestrating high-voltage charging
+                  with guaranteed reliability.
+                </p>
+
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                  <Button
+                    size="lg"
+                    asChild
+                    className="h-12 rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-600 px-7 font-bold text-white shadow-emerald-glow hover:shadow-[0_0_35px_rgba(16,185,129,0.55)]"
+                  >
+                    <Link to="/register" className="flex items-center gap-2">
+                      Launch Console / Get Started
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    asChild
+                    className="h-12 rounded-xl border border-white/10 bg-[#0C1527] px-6 font-medium text-slate-200 hover:border-cyan-500/40 hover:text-cyan-300"
+                  >
+                    <Link to="/driver/stations">Explore Live Stations</Link>
+                  </Button>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Free driver accounts
                   </span>
-                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                    Step {i + 1}
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" /> Instant operator deployment
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> 24/7 technical hotline
                   </span>
                 </div>
-                <h3 className="mt-4 text-base font-medium">{s.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
-              </motion.div>
-            ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* Stats band */}
-      <section id="network" className="scroll-mt-20">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <div className="grid gap-8 rounded-2xl border bg-card p-8 shadow-sm sm:grid-cols-2 lg:grid-cols-4 lg:p-10">
-            {stats.map((s, i) => (
-              <motion.div
-                key={s.label}
-                {...fadeUp}
-                transition={{ duration: 0.4, delay: i * 0.06 }}
-                className="text-center"
-              >
-                <p className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">{s.value}</p>
-                <p className="mt-2 text-sm text-muted-foreground">{s.label}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Roles */}
-      <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:pb-24">
-        <SectionHeading
-          eyebrow="Built for every role"
-          title="One network, four ways to use it"
-          description="Each role gets a workspace scoped to what it needs. Open any of them and look around."
-        />
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {Object.entries(ROLE_META).map(([key, role], i) => {
-            const Icon = roleIcons[key]
-            return (
-              <motion.div
-                key={key}
-                {...fadeUp}
-                transition={{ duration: 0.4, delay: i * 0.05 }}
-                whileHover={{ y: -2 }}
-                className="flex flex-col rounded-xl border bg-card p-5 shadow-sm"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" />
+      {/* Comprehensive Modern Footer */}
+      <footer className="relative z-10 border-t border-white/10 bg-[#050811] text-xs text-slate-400">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+          <div className="grid gap-10 md:grid-cols-5">
+            {/* Brand column */}
+            <div className="md:col-span-2">
+              <Link to="/" className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black">
+                  <Zap className="h-4 w-4 fill-current" />
                 </span>
-                <h3 className="mt-3 text-sm font-medium">{role.label}</h3>
-                <p className="mt-1.5 flex-1 text-xs leading-relaxed text-muted-foreground">{roleBlurbs[key]}</p>
-                <Link
-                  to={role.home}
-                  className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  View demo dashboard
-                  <ArrowRight className="h-3 w-3" />
-                </Link>
-              </motion.div>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="border-y bg-muted/30 py-16 lg:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <SectionHeading eyebrow="Customers" title="Trusted on the road and at the depot" />
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <motion.figure
-                key={t.name}
-                {...fadeUp}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="flex h-full flex-col rounded-xl border bg-card p-6 shadow-sm"
-              >
-                <Quote className="h-5 w-5 text-primary/60" />
-                <blockquote className="mt-4 flex-1 text-sm leading-relaxed text-foreground">
-                  “{t.quote}”
-                </blockquote>
-                <figcaption className="mt-5 border-t pt-4">
-                  <p className="text-sm font-medium">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
-                </figcaption>
-              </motion.figure>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 lg:py-24">
-        <SectionHeading
-          eyebrow="Pricing"
-          title="Simple plans, no surprises"
-          description="Charge pay-as-you-go, or subscribe for cheaper kWh and unlimited bookings."
-        />
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          {tiers.map((tier, i) => (
-            <motion.div
-              key={tier.name}
-              {...fadeUp}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className={cn(
-                'flex flex-col rounded-xl border bg-card p-6 shadow-sm',
-                tier.highlighted && 'border-primary/50 shadow-lg ring-1 ring-primary/20 lg:-mt-4 lg:pb-10'
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">{tier.name}</h3>
-                {tier.highlighted && <Badge>Most popular</Badge>}
-              </div>
-              <div className="mt-4 flex items-baseline gap-1.5">
-                <span className="text-3xl font-semibold tracking-tight">{tier.price}</span>
-                <span className="text-xs text-muted-foreground">{tier.period}</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{tier.description}</p>
-              <ul className="mt-6 flex-1 space-y-2.5">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button asChild variant={tier.highlighted ? 'default' : 'outline'} className="mt-6 w-full">
-                <Link to={tier.to}>{tier.cta}</Link>
-              </Button>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="border-t bg-muted/30">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <motion.div
-            {...fadeUp}
-            transition={{ duration: 0.5 }}
-            className="relative overflow-hidden rounded-2xl border bg-card px-6 py-12 text-center shadow-sm sm:px-12"
-          >
-            <div
-              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent"
-              aria-hidden="true"
-            />
-            <div className="relative">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Ready to plug into the network?
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Create an account in under a minute and start charging today. Fleets and operators can talk to
-                us about rolling out across every site.
+                <span className="text-base font-extrabold tracking-tight text-white">VoltGrid</span>
+              </Link>
+              <p className="mt-3 max-w-sm text-xs leading-relaxed text-slate-400">
+                The next-generation smart charging infrastructure network. Seamless EV charging telemetry, guaranteed
+                bay reservations, and commercial fleet optimization.
               </p>
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-                <Button size="lg" asChild>
-                  <Link to="/register">
-                    Get started free
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link to="/login">Log in</Link>
-                </Button>
+
+              {/* Status Ping */}
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-3 py-1 text-[11px] text-emerald-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>All 42 SuperHubs Operational · 99.9% Uptime</span>
               </div>
             </div>
-          </motion.div>
-        </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="border-t">
-        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-          <div className="grid gap-10 md:grid-cols-[1.5fr_repeat(4,1fr)]">
-            <div>
-              <Logo />
-              <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-                The charging network for drivers, fleets and station operators.
-              </p>
-            </div>
-            {footerColumns.map((col) => (
+            {/* Links Columns */}
+            {FOOTER_COLUMNS.slice(0, 3).map((col) => (
               <div key={col.title}>
-                <p className="text-sm font-medium">{col.title}</p>
+                <p className="font-semibold text-white">{col.title}</p>
                 <ul className="mt-3 space-y-2">
                   {col.links.map((link) => (
-                    <li key={link}>
-                      <a
-                        href="#"
-                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {link}
-                      </a>
+                    <li key={link.label}>
+                      {link.href.startsWith('/') ? (
+                        <Link to={link.href} className="transition-colors hover:text-emerald-400">
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <a href={link.href} className="transition-colors hover:text-emerald-400">
+                          {link.label}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
               </div>
             ))}
           </div>
-          <div className="mt-10 border-t pt-6">
-            <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} VoltGrid Inc. All rights reserved.
-            </p>
+
+          <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 text-[11px] text-slate-500">
+            <p>© {new Date().getFullYear()} VoltGrid Infrastructure Technologies Inc. All rights reserved.</p>
+            <div className="flex gap-6">
+              <span className="hover:text-slate-400">OCPP 2.0.1 Ready</span>
+              <span className="hover:text-slate-400">ISO 15118 Certified</span>
+              <span className="hover:text-slate-400">SOC 2 Type II Audited</span>
+            </div>
           </div>
         </div>
       </footer>
