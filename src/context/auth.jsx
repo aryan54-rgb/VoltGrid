@@ -105,14 +105,24 @@ export function AuthProvider({ children }) {
     return { data }
   }, [])
 
-  const signUp = React.useCallback(async ({ email, password, name, role }) => {
+  const signUp = React.useCallback(async ({ email, password, name, role, vehicle, licensePlate, company }) => {
     setError(null)
+    const normalizedRole = PUBLIC_SIGNUP_ROLES.includes(role) ? role : 'driver'
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         // Read back by the `handle_new_user` trigger to seed the profile row.
-        data: { full_name: name, role: PUBLIC_SIGNUP_ROLES.includes(role) ? role : 'driver' },
+        data: {
+          full_name: name,
+          name,
+          role: normalizedRole,
+          vehicle: vehicle?.trim() || null,
+          vehicle_name: vehicle?.trim() || null,
+          license_plate: licensePlate?.trim() || null,
+          plate: licensePlate?.trim() || null,
+          company: company?.trim() || null,
+        },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
@@ -178,18 +188,42 @@ export function AuthProvider({ children }) {
    * therefore works exactly once per account.
    */
   const completeOnboarding = React.useCallback(
-    async ({ role, name }) => {
+    async ({ role, name, vehicle, licensePlate, company }) => {
       if (!userId) return { error: new Error('Not signed in') }
-      const { data, error: rpcError } = await supabase.rpc('complete_onboarding', {
-        new_role: role,
-        display_name: name?.trim() || null,
-      })
-      if (rpcError) return { error: rpcError }
-      // The function returns the updated row, so no refetch is needed.
-      if (data) setProfile(data)
-      return { data }
+      try {
+        const { data, error: rpcError } = await supabase.rpc('complete_onboarding', {
+          new_role: role,
+          display_name: name?.trim() || null,
+          vehicle_name: vehicle?.trim() || null,
+          license_plate_val: licensePlate?.trim() || null,
+          company_name: company?.trim() || null,
+        })
+        if (rpcError) throw rpcError
+        if (data) setProfile(data)
+        return { data }
+      } catch {
+        // Fallback for earlier RPC signature
+        const { data: legacyData, error: fallbackError } = await supabase.rpc('complete_onboarding', {
+          new_role: role,
+          display_name: name?.trim() || null,
+        })
+        if (fallbackError) return { error: fallbackError }
+        if (vehicle || licensePlate || company) {
+          await supabase
+            .from('profiles')
+            .update({
+              ...(vehicle ? { vehicle: vehicle.trim() } : {}),
+              ...(licensePlate ? { license_plate: licensePlate.trim() } : {}),
+              ...(company ? { company: company.trim() } : {}),
+            })
+            .eq('id', userId)
+        }
+        const updated = await loadProfile(userId)
+        if (updated) setProfile(updated)
+        return { data: updated || legacyData }
+      }
     },
-    [userId]
+    [userId, loadProfile]
   )
 
   /** Accepts an invitation after its one-time magic link establishes a session. */

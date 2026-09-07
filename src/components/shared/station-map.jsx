@@ -114,7 +114,7 @@ export function StationMap({ stations = [], selectedId, onSelect, className, hei
       <button
         type="button"
         onClick={toggleFullscreen}
-        className="absolute right-3 top-3 z-[1100] inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent"
+        className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent"
         aria-label={isFullscreen ? 'Exit fullscreen map' : 'View map fullscreen'}
         title={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
       >
@@ -122,7 +122,7 @@ export function StationMap({ stations = [], selectedId, onSelect, className, hei
         {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
       </button>
       {locatedStations.length === 0 && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] mx-auto w-fit rounded-md bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 mx-auto w-fit rounded-md bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
           No station coordinates yet — centred on Pune.
         </div>
       )}

@@ -37,16 +37,18 @@ export default function Profile() {
   const { profile, updateProfile } = useAuth()
 
   const roleLabel = ROLE_META[profile?.role]?.label ?? 'EV Driver'
-  const vehicle = profile?.vehicle ?? 'No vehicle on file'
+  const vehicle = profile?.vehicle ?? 'Tata Nexon EV'
 
   const [account, setAccount] = useState({
     name: profile?.name ?? '',
     email: profile?.email ?? '',
     phone: '+91 98220 41783',
   })
+  const [vehicleName, setVehicleName] = useState(profile?.vehicle ?? 'Tata Nexon EV')
+  const [registration, setRegistration] = useState(profile?.license_plate ?? 'MH 12 QR 4821')
   const [saved, setSaved] = useState(false)
+  const [vehicleSaved, setVehicleSaved] = useState(false)
   const [saveError, setSaveError] = useState(null)
-  const [registration, setRegistration] = useState('MH 12 QR 4821')
   const [prefs, setPrefs] = useState({ autoTopUp: true, reservationReminders: true })
   const [connector, setConnector] = useState('CCS2')
   const [twoFactor, setTwoFactor] = useState(true)
@@ -58,13 +60,12 @@ export default function Profile() {
   useEffect(() => {
     if (!profile) return
     setAccount((a) => ({ ...a, name: profile.name ?? '', email: profile.email ?? '' }))
+    if (profile.vehicle) setVehicleName(profile.vehicle)
+    if (profile.license_plate) setRegistration(profile.license_plate)
   }, [profile])
 
   async function saveAccount() {
     setSaveError(null)
-    // Only `name` is writable here. `email` belongs to auth.users and `role` is
-    // blocked by column-level grants, which is what stops a driver from
-    // promoting themselves.
     const { error } = await updateProfile({ name: account.name })
     if (error) {
       setSaveError(error)
@@ -72,6 +73,20 @@ export default function Profile() {
     }
     setSaved(true)
     setTimeout(() => setSaved(false), 1800)
+  }
+
+  async function saveVehicle() {
+    setSaveError(null)
+    const { error } = await updateProfile({
+      vehicle: vehicleName.trim(),
+      license_plate: registration.trim().toUpperCase(),
+    })
+    if (error) {
+      setSaveError(error)
+      return
+    }
+    setVehicleSaved(true)
+    setTimeout(() => setVehicleSaved(false), 1800)
   }
 
   function changePassword() {
@@ -97,7 +112,7 @@ export default function Profile() {
             </div>
             <p className="text-sm text-muted-foreground">{account.email}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {profile?.joined ? `Member since ${formatDate(profile.joined)}` : 'Member'} · {vehicle}
+              {profile?.joined ? `Member since ${formatDate(profile.joined)}` : 'Member'} · {vehicleName || vehicle} ({registration})
             </p>
           </div>
         </CardContent>
@@ -176,40 +191,55 @@ export default function Profile() {
                 <Car className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">{vehicle}</CardTitle>
-                <CardDescription>Primary vehicle</CardDescription>
+                <CardTitle className="text-base">{vehicleName || 'Primary Vehicle'}</CardTitle>
+                <CardDescription>EV details and number plate on file</CardDescription>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prof-vehicle">Vehicle Name / Model</Label>
+                  <Input
+                    id="prof-vehicle"
+                    value={vehicleName}
+                    placeholder="e.g. Tata Nexon EV"
+                    onChange={(e) => setVehicleName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="registration">Number Plate / Registration No.</Label>
+                  <Input
+                    id="registration"
+                    value={registration}
+                    placeholder="e.g. MH 12 QR 4821"
+                    onChange={(e) => setRegistration(e.target.value.toUpperCase())}
+                    className="uppercase font-mono"
+                  />
+                </div>
+              </div>
+              <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Battery capacity</span>
                 <span className="font-medium tabular-nums">75 kWh</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Connector</span>
-                <span className="font-medium">CCS2</span>
+                <span className="text-muted-foreground">Connector Compatibility</span>
+                <span className="font-medium">CCS2 (DC Fast) / Type 2</span>
               </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="registration" className="text-muted-foreground">
-                  Registration number
-                </Label>
-                <Input
-                  id="registration"
-                  value={registration}
-                  onChange={(e) => setRegistration(e.target.value)}
-                  className="w-44 text-right uppercase"
-                />
+              <div className="pt-2">
+                <Button onClick={saveVehicle}>
+                  {vehicleSaved ? (
+                    <>
+                      <Check className="h-4 w-4" /> Vehicle saved
+                    </>
+                  ) : (
+                    'Save vehicle info'
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <Plus className="h-4 w-4" /> Add vehicle
-          </button>
         </TabsContent>
 
         {/* Preferences */}

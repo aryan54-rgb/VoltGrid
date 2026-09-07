@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertCircle, Building2, Check, Loader2, Truck, Zap } from 'lucide-react'
+import { AlertCircle, Building2, Car, Check, Loader2, Truck, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,6 +45,9 @@ export default function Onboarding() {
   const [role, setRole] = useState('driver')
   // Providers usually send a name; fall back to letting them type one.
   const [name, setName] = useState(profile?.name ?? '')
+  const [vehicle, setVehicle] = useState(profile?.vehicle ?? '')
+  const [licensePlate, setLicensePlate] = useState(profile?.license_plate ?? '')
+  const [company, setCompany] = useState(profile?.company ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -57,8 +60,24 @@ export default function Onboarding() {
       return
     }
 
+    if (role === 'driver' && (!vehicle.trim() || !licensePlate.trim())) {
+      setError('Please enter your vehicle name and number plate.')
+      return
+    }
+
+    if (role === 'fleet' && (!company.trim() || !licensePlate.trim())) {
+      setError('Please enter your fleet organization name and primary vehicle number plate.')
+      return
+    }
+
     setBusy(true)
-    const { data, error: rpcError } = await completeOnboarding({ role, name })
+    const { data, error: rpcError } = await completeOnboarding({
+      role,
+      name: name.trim(),
+      vehicle: vehicle.trim(),
+      licensePlate: licensePlate.trim().toUpperCase(),
+      company: company.trim(),
+    })
 
     if (rpcError) {
       setBusy(false)
@@ -149,6 +168,95 @@ export default function Onboarding() {
             })}
           </div>
         </fieldset>
+
+        {/* Dynamic Fields Based on Selected Role */}
+        {role === 'driver' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Car className="h-3.5 w-3.5 text-primary" />
+              <span>Vehicle Information</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ob-vehicle">Vehicle Name / Model *</Label>
+              <Input
+                id="ob-vehicle"
+                placeholder="e.g. Tata Nexon EV, MG ZS EV, Tesla Model 3"
+                value={vehicle}
+                onChange={(e) => setVehicle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ob-plate">Number Plate / Registration No. *</Label>
+              <Input
+                id="ob-plate"
+                placeholder="e.g. MH 12 AB 1234"
+                value={licensePlate}
+                onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                required
+                className="uppercase"
+              />
+            </div>
+          </div>
+        )}
+
+        {role === 'fleet' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Truck className="h-3.5 w-3.5 text-primary" />
+              <span>Fleet Organization & Vehicle</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ob-fleet-company">Fleet Company Name *</Label>
+              <Input
+                id="ob-fleet-company"
+                placeholder="e.g. Swift Logistics"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="ob-fleet-vehicle">Primary Vehicle Model</Label>
+                <Input
+                  id="ob-fleet-vehicle"
+                  placeholder="e.g. Tata Ace EV, Ford E-Transit"
+                  value={vehicle}
+                  onChange={(e) => setVehicle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ob-fleet-plate">Vehicle Number Plate *</Label>
+                <Input
+                  id="ob-fleet-plate"
+                  placeholder="e.g. MH 12 VN 1001"
+                  value={licensePlate}
+                  onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                  required
+                  className="uppercase"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {role === 'operator' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Operator Details
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="ob-op-company">Network / Organization Name</Label>
+              <Input
+                id="ob-op-company"
+                placeholder="e.g. VoltGrid Pune Network"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
 
         <Button type="submit" className="w-full" disabled={busy}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}

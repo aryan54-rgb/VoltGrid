@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertCircle, Loader2, MailCheck } from 'lucide-react'
+import { AlertCircle, Car, Loader2, MailCheck, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,9 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [role, setRole] = useState('driver')
+  const [vehicle, setVehicle] = useState('')
+  const [licensePlate, setLicensePlate] = useState('')
+  const [company, setCompany] = useState('')
   const [agreed, setAgreed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -43,6 +46,14 @@ export default function Register() {
       setError('The two passwords don’t match.')
       return
     }
+    if (role === 'driver' && (!vehicle.trim() || !licensePlate.trim())) {
+      setError('Please provide your EV vehicle name and number plate.')
+      return
+    }
+    if (role === 'fleet' && (!company.trim() || !licensePlate.trim())) {
+      setError('Please provide your fleet company name and primary vehicle number plate.')
+      return
+    }
 
     setBusy(true)
     const { error: signUpError, needsEmailConfirmation } = await signUp({
@@ -50,6 +61,9 @@ export default function Register() {
       password,
       name: name.trim(),
       role,
+      vehicle: vehicle.trim(),
+      licensePlate: licensePlate.trim().toUpperCase(),
+      company: company.trim(),
     })
 
     if (signUpError) {
@@ -132,29 +146,31 @@ export default function Register() {
             required
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="At least 8 characters"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirm">Confirm password</Label>
-          <Input
-            id="confirm"
-            type="password"
-            placeholder="Re-enter your password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm">Confirm password</Label>
+            <Input
+              id="confirm"
+              type="password"
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label>Register as</Label>
@@ -171,6 +187,95 @@ export default function Register() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Dynamic Fields Based on Role */}
+        {role === 'driver' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Car className="h-3.5 w-3.5 text-primary" />
+              <span>Vehicle Information</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-name">Vehicle Name / Model *</Label>
+              <Input
+                id="vehicle-name"
+                placeholder="e.g. Tata Nexon EV, MG ZS EV, Tesla Model 3"
+                value={vehicle}
+                onChange={(e) => setVehicle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="number-plate">Number Plate / Registration No. *</Label>
+              <Input
+                id="number-plate"
+                placeholder="e.g. MH 12 AB 1234"
+                value={licensePlate}
+                onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                required
+                className="uppercase"
+              />
+            </div>
+          </div>
+        )}
+
+        {role === 'fleet' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Truck className="h-3.5 w-3.5 text-primary" />
+              <span>Fleet & Initial Vehicle Details</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fleet-company">Fleet Company / Organization *</Label>
+              <Input
+                id="fleet-company"
+                placeholder="e.g. Swift Logistics, Pune Express"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="fleet-vehicle">Primary Vehicle Model</Label>
+                <Input
+                  id="fleet-vehicle"
+                  placeholder="e.g. Tata Ace EV, Ford E-Transit"
+                  value={vehicle}
+                  onChange={(e) => setVehicle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fleet-plate">Vehicle Number Plate *</Label>
+                <Input
+                  id="fleet-plate"
+                  placeholder="e.g. MH 12 VN 1001"
+                  value={licensePlate}
+                  onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                  required
+                  className="uppercase"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {role === 'operator' && (
+          <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Operator Organization
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="op-company">Network / Organization Name</Label>
+              <Input
+                id="op-company"
+                placeholder="e.g. VoltGrid Pune Network"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex items-start gap-3 rounded-lg border p-3">
           <Switch id="terms" checked={agreed} onCheckedChange={setAgreed} className="mt-0.5" />

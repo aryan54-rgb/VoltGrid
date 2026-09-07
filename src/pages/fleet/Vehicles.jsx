@@ -49,10 +49,13 @@ const STATUS_LABELS = {
 }
 /** Models offered in the add-vehicle picker before the roster has loaded. */
 const FALLBACK_MODELS = [
+  'Tata Ace EV',
+  'Tata Nexon EV Commercial',
+  'Mahindra Treo Zor EV',
   'Ford E-Transit',
   'Rivian EDV 700',
-  'Rivian EDV 500',
   'Mercedes eSprinter',
+  'BYD T3 EV',
   'BrightDrop Zevo 600',
 ]
 
@@ -78,7 +81,7 @@ export default function Vehicles() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [modelFilter, setModelFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
-  const [form, setForm] = useState({ model: '', id: '', driver: '' })
+  const [form, setForm] = useState({ model: 'Tata Ace EV', id: '', driver: '' })
   const [selected, setSelected] = useState(null)
   const [notice, setNotice] = useState('')
 
@@ -105,11 +108,11 @@ export default function Vehicles() {
     try {
       await createVehicle({
         company: profile?.company ?? 'Swift Logistics',
-        id: form.id.trim(),
+        id: form.id.trim().toUpperCase(),
         model: form.model,
         driverName: form.driver.trim(),
       })
-      setForm({ model: '', id: '', driver: '' })
+      setForm({ model: 'Tata Ace EV', id: '', driver: '' })
       setAddOpen(false)
       roster.refetch()
     } catch (err) {
@@ -142,14 +145,14 @@ export default function Vehicles() {
       {actionError && <ErrorState error={actionError} title="That change did not go through" />}
       <PageHeader
         title="Vehicles"
-        description={`${vehicles.length} vehicles across the Swift Logistics fleet`}
+        description={`${vehicles.length} vehicles registered across the ${profile?.company ?? 'Swift Logistics'} fleet`}
         actions={
           <>
             <SearchInput
-              placeholder="Search vehicles…"
+              placeholder="Search number plate, model, driver…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-56"
+              className="w-64"
             />
             <Button onClick={() => setAddOpen(true)}>
               <Plus />
@@ -202,7 +205,7 @@ export default function Vehicles() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Vehicle</TableHead>
+              <TableHead>Number Plate & Model</TableHead>
               <TableHead>Driver</TableHead>
               <TableHead>State of charge</TableHead>
               <TableHead>Range km</TableHead>
@@ -218,7 +221,7 @@ export default function Vehicles() {
               <TableRow key={v.id} className="cursor-pointer" onClick={() => setSelected(v)}>
                 <TableCell>
                   <div className="space-y-0.5">
-                    <p className="font-medium">{v.id}</p>
+                    <p className="font-semibold uppercase tracking-wide font-mono text-foreground">{v.id}</p>
                     <p className="text-xs text-muted-foreground">{v.model}</p>
                   </div>
                 </TableCell>
@@ -236,7 +239,7 @@ export default function Vehicles() {
                 <TableCell className="tabular-nums">{v.rangeKm}</TableCell>
                 <TableCell className="text-muted-foreground">{v.location}</TableCell>
                 <TableCell className="tabular-nums">{v.health}%</TableCell>
-                <TableCell className="text-muted-foreground">{v.nextService}</TableCell>
+                <TableCell className="text-muted-foreground">{v.nextService ?? 'Scheduled'}</TableCell>
                 <TableCell>
                   <StatusBadge status={v.status} label={STATUS_LABELS[v.status]} />
                 </TableCell>
@@ -277,14 +280,14 @@ export default function Vehicles() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add vehicle</DialogTitle>
-            <DialogDescription>Register a new vehicle to the Swift Logistics fleet.</DialogDescription>
+            <DialogTitle>Add fleet vehicle</DialogTitle>
+            <DialogDescription>Register a new EV to the {profile?.company ?? 'Swift Logistics'} fleet.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Model</Label>
+              <Label htmlFor="vehicle-model">Vehicle Model *</Label>
               <Select value={form.model} onValueChange={(v) => setForm((f) => ({ ...f, model: v }))}>
-                <SelectTrigger>
+                <SelectTrigger id="vehicle-model">
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
@@ -297,19 +300,24 @@ export default function Vehicles() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="vehicle-id">Vehicle id</Label>
+              <Label htmlFor="vehicle-id">Number Plate / Registration Number *</Label>
               <Input
                 id="vehicle-id"
-                placeholder="VN-122"
+                placeholder="e.g. MH 12 AB 1234 or VN-122"
                 value={form.id}
-                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value.toUpperCase() }))}
+                className="uppercase font-mono"
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                Enter license plate number or internal fleet identifier.
+              </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="vehicle-driver">Assigned driver</Label>
+              <Label htmlFor="vehicle-driver">Assigned Driver</Label>
               <Input
                 id="vehicle-driver"
-                placeholder="Leave blank if unassigned"
+                placeholder="Driver name (or leave blank for unassigned)"
                 value={form.driver}
                 onChange={(e) => setForm((f) => ({ ...f, driver: e.target.value }))}
               />

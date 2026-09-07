@@ -133,7 +133,8 @@ export async function createStation({
   city,
   operator,
   operatorId,
-  connectorCount,
+  pricePerKwh = 0.4,
+  connectorCount = 4,
   latitude,
   longitude,
   type = 'CCS2',
@@ -143,18 +144,22 @@ export async function createStation({
   const nextNumber = existing.length + 1
   const id = `st-${String(nextNumber).padStart(2, '0')}`
 
+  const numericPrice = Number(pricePerKwh) > 0 ? Number(pricePerKwh) : 0.4
+  const numConnectors = Math.max(1, parseInt(connectorCount, 10) || 1)
+  const numPower = Math.max(7, parseInt(powerKw, 10) || 150)
+
   const baseData = {
     id,
     name,
     address: address || 'Address pending',
-    city: city || 'San Francisco, CA',
+    city: city || 'Pune, Maharashtra',
     rating: 0,
     reviews: 0,
-    price_per_kwh: 0.4,
+    price_per_kwh: numericPrice,
     status: 'online',
     latitude: parseLatitude(latitude),
     longitude: parseLongitude(longitude),
-    amenities: [],
+    amenities: ['24/7 Access', 'Restroom', 'WiFi'],
     hours: 'Open 24 hours',
     operator,
     utilization: 0,
@@ -177,19 +182,19 @@ export async function createStation({
       .then(unwrap)
   }
 
-  const bays = Array.from({ length: Math.max(1, connectorCount) }, (_, i) => ({
+  const bays = Array.from({ length: numConnectors }, (_, i) => ({
     id: `${id}-c1${i + 1}`,
     station_id: id,
     label: `A${i + 1}`,
-    type,
-    power_kw: powerKw,
+    type: type || 'CCS2',
+    power_kw: numPower,
     status: 'AVAILABLE',
   }))
   const { error } = await supabase.from('connectors').insert(bays)
   if (error) throw error
 
   return mapStation(station, [
-    { station_id: id, type, power_kw: powerKw, total: bays.length, available: bays.length },
+    { station_id: id, type: type || 'CCS2', power_kw: numPower, total: bays.length, available: bays.length },
   ])
 }
 

@@ -163,6 +163,11 @@
 }
 
 /* Leaflet supplies the map mechanics; these keep its popups in VoltGrid's theme. */
+.station-map {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+}
 .station-map .leaflet-control-zoom a,
 .station-map .leaflet-control-attribution {
   background: color-mix(in oklab, var(--card) 92%, transparent);

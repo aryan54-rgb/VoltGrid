@@ -36,7 +36,17 @@ import { createStation, fetchStations, updateStation } from '@/lib/api/stations'
 import { useAuth } from '@/context/auth'
 
 const FALLBACK_OPERATOR = 'VoltGrid Network'
-const BLANK_FORM = { name: '', address: '', connectors: '4', latitude: '', longitude: '' }
+const BLANK_FORM = {
+  name: '',
+  address: '',
+  city: 'Pune, Maharashtra',
+  pricePerKwh: '0.40',
+  connectors: '4',
+  connectorType: 'CCS2',
+  powerKw: '150',
+  latitude: '',
+  longitude: '',
+}
 
 const STATUSES = [
   { value: 'online', label: 'Online' },
@@ -238,9 +248,13 @@ export default function Stations() {
       await createStation({
         name: form.name.trim(),
         address: form.address.trim(),
+        city: form.city.trim() || 'Pune, Maharashtra',
+        pricePerKwh: parseFloat(form.pricePerKwh) || 0.4,
         operator: profile?.company || profile?.name || profile?.email || OPERATORS[0] || FALLBACK_OPERATOR,
         operatorId: profile?.id || null,
         connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
+        type: form.connectorType || 'CCS2',
+        powerKw: parseInt(form.powerKw, 10) || 150,
         // A blank field parses to null, which is exactly what the column means
         // by "not surveyed yet".
         latitude: parseLatitude(form.latitude),
@@ -479,46 +493,123 @@ export default function Stations() {
 
       {/* Add station */}
       <Dialog open={addOpen} onOpenChange={closeAdd}>
-        <DialogContent>
+        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           {addDone ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div className="flex flex-col items-center gap-3 p-8 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
                 <CheckCircle2 className="h-6 w-6 text-primary" />
               </div>
-              <DialogTitle>Station added</DialogTitle>
+              <DialogTitle>Station added successfully</DialogTitle>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{form.name}</span> is now on the network.
-                Configure its chargers next.
+                <span className="font-medium text-foreground">{form.name}</span> is now active on the VoltGrid network.
+                Configure chargers and live telemetry next.
               </p>
-              <Button variant="outline" className="mt-2" onClick={() => closeAdd(false)}>
+              <Button variant="outline" className="mt-4" onClick={() => closeAdd(false)}>
                 Done
               </Button>
             </div>
           ) : (
             <>
-              <DialogHeader>
-                <DialogTitle>Add station</DialogTitle>
-                <DialogDescription>Add a new charging site to your network.</DialogDescription>
+              <DialogHeader className="p-6 pb-4 border-b">
+                <DialogTitle>Add charging station</DialogTitle>
+                <DialogDescription>Add a new charging site and configure its bays on your network.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="st-name">Station name</Label>
-                  <Input
-                    id="st-name"
-                    placeholder="e.g. Bayview Charge Hub"
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  />
+              <div className="space-y-4 p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="st-name">Station name *</Label>
+                    <Input
+                      id="st-name"
+                      placeholder="e.g. Pune City Center Superhub"
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="st-address">Street address</Label>
+                    <Input
+                      id="st-address"
+                      placeholder="e.g. FC Road, Deccan Gymkhana"
+                      value={form.address}
+                      onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="st-city">City / Region</Label>
+                    <Input
+                      id="st-city"
+                      placeholder="e.g. Pune, Maharashtra"
+                      value={form.city}
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="st-price">Price per kWh ($ / ₹)</Label>
+                    <Input
+                      id="st-price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.40"
+                      value={form.pricePerKwh}
+                      onChange={(e) => setForm((f) => ({ ...f, pricePerKwh: e.target.value }))}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="st-address">Address</Label>
-                  <Input
-                    id="st-address"
-                    placeholder="Street address"
-                    value={form.address}
-                    onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  />
+
+                <div className="rounded-lg border p-3.5 bg-muted/20 space-y-3">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider">Charger Configuration</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="st-connectors">Bay Count</Label>
+                      <Input
+                        id="st-connectors"
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={form.connectors}
+                        onChange={(e) => setForm((f) => ({ ...f, connectors: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="st-type">Plug Type</Label>
+                      <Select
+                        value={form.connectorType}
+                        onValueChange={(val) => setForm((f) => ({ ...f, connectorType: val }))}
+                      >
+                        <SelectTrigger id="st-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CCS2">CCS2 (DC Fast)</SelectItem>
+                          <SelectItem value="Type 2">Type 2 (AC)</SelectItem>
+                          <SelectItem value="CHAdeMO">CHAdeMO</SelectItem>
+                          <SelectItem value="GB/T">GB/T</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="st-power">Power Rating</Label>
+                      <Select
+                        value={form.powerKw}
+                        onValueChange={(val) => setForm((f) => ({ ...f, powerKw: val }))}
+                      >
+                        <SelectTrigger id="st-power">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="22">22 kW (AC)</SelectItem>
+                          <SelectItem value="60">60 kW (DC)</SelectItem>
+                          <SelectItem value="150">150 kW (Rapid)</SelectItem>
+                          <SelectItem value="240">240 kW (Ultra-Fast)</SelectItem>
+                          <SelectItem value="350">350 kW (Hyper-Charge)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
+
                 <CoordinateFields
                   idPrefix="st"
                   latitude={form.latitude}
@@ -532,21 +623,8 @@ export default function Stations() {
                   isDetecting={isDetecting}
                   geoError={geoError}
                 />
-                <div className="space-y-1.5">
-                  <Label htmlFor="st-connectors">Connectors</Label>
-                  <Input
-                    id="st-connectors"
-                    type="number"
-                    min="1"
-                    value={form.connectors}
-                    onChange={(e) => setForm((f) => ({ ...f, connectors: e.target.value }))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Added as 150 kW CCS2 bays — you can change the mix later.
-                  </p>
-                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="p-4 sm:p-6 border-t bg-muted/10 gap-2">
                 <Button variant="outline" onClick={() => closeAdd(false)}>
                   Cancel
                 </Button>
@@ -561,16 +639,16 @@ export default function Stations() {
 
       {/* Manage pricing & status */}
       <Dialog open={!!managing} onOpenChange={(open) => !open && setManaging(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           {managing && (
             <>
-              <DialogHeader>
+              <DialogHeader className="p-6 pb-4 border-b">
                 <DialogTitle>Manage {managing.name}</DialogTitle>
-                <DialogDescription>Set pricing and published status for this site.</DialogDescription>
+                <DialogDescription>Set pricing, published status and coordinates for this site.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
+              <div className="space-y-4 p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
                 <div className="space-y-1.5">
-                  <Label htmlFor="mg-price">Price (USD per kWh)</Label>
+                  <Label htmlFor="mg-price">Price (USD / ₹ per kWh)</Label>
                   <Input
                     id="mg-price"
                     type="number"
@@ -606,7 +684,7 @@ export default function Stations() {
                   Changes apply to every charger at this site as soon as you save.
                 </p>
               </div>
-              <DialogFooter className="items-center">
+              <DialogFooter className="items-center p-4 sm:p-6 border-t bg-muted/10 gap-2">
                 {savedId === managing.id && (
                   <span className="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-status-good">
                     <CheckCircle2 className="h-4 w-4" /> Saved
