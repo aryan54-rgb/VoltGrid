@@ -1,526 +1,184 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import {
-  Zap,
-  Sun,
-  Moon,
-  ArrowRight,
-  Cpu,
-  Activity,
-  Layers,
-  Lock,
-  Wallet,
-  CalendarCheck,
-  Quote,
-  CheckCircle2,
-  Menu,
-  X,
+  Activity, ArrowRight, ArrowUpRight, BatteryCharging, Building2, CalendarDays,
+  CarFront, CheckCircle2, Cpu, Gauge, Globe2, Layers3, Menu, Navigation,
+  PlayCircle, Radio, RefreshCw, Shield, ShieldCheck, Truck, Users, X, Zap,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useTheme } from '@/context/theme'
+import TelemetryCanvas from '@/components/landing/TelemetryCanvas'
+import './Landing.css'
 
-// Import our modular cyber-energy landing components
-import { EnergyBackground } from '@/components/landing/EnergyBackground'
-import { HeroSection } from '@/components/landing/HeroSection'
-import { NetworkTicker } from '@/components/landing/NetworkTicker'
-import { RoleTabsSection } from '@/components/landing/RoleTabsSection'
-import { KioskTelemetryDemo } from '@/components/landing/KioskTelemetryDemo'
-import { PricingSection } from '@/components/landing/PricingSection'
-
-const LOGOS = ['Northwind Mobility', 'Helio Transit', 'Arcadia Logistics', 'Beacon Fleet', 'Orbit Rideshare']
-
-const CORE_CAPABILITIES = [
+const roles = [
   {
-    icon: Cpu,
-    title: 'OCPP 2.0.1 Native Gateway',
-    description:
-      'Universal hardware compatibility. Connect ABB, Tritium, Schneider, and custom EVSE kiosks without proprietary vendor lock-in.',
-    badge: 'Hardware Agnostic',
+    id: 'driver', label: 'Drivers', icon: CarFront, eyebrow: 'DRIVER MOBILE WORKSPACE',
+    title: 'Find, reserve & charge in seconds',
+    description: 'See nearby availability, plan a charging stop, and follow battery status from one clear workspace.',
+    points: ['Find available bays', 'Follow battery and session status', 'Plan the next stop'],
   },
   {
-    icon: Activity,
-    title: 'Sub-Second Cloud Telemetry',
-    description:
-      'Stream voltage, current, power factor, and thermal dissipation metrics at millisecond frequencies directly to your monitoring dashboards.',
-    badge: '< 150ms Latency',
+    id: 'operator', label: 'Station Operators', icon: Building2, eyebrow: 'STATION OPERATOR DASHBOARD',
+    title: 'Keep every station moving',
+    description: 'Watch connector status, investigate faults, and see charging activity across an entire site.',
+    points: ['Live connector visibility', 'Session and fault monitoring', 'Site power overview'],
   },
   {
-    icon: Layers,
-    title: 'Dynamic Phase Load Balancing',
-    description:
-      'Intelligent grid curtailment algorithm automatically redistributes power across active bays to prevent costly utility demand spikes.',
-    badge: 'Eco-Grid Peak Shaving',
+    id: 'fleet', label: 'Fleet Managers', icon: Truck, eyebrow: 'DEPOT FLEET ORCHESTRATOR',
+    title: 'Get every vehicle route ready',
+    description: 'See which vehicles are charging, match energy plans to shifts, and spot departures that need attention.',
+    points: ['Shift-aware schedules', 'Depot capacity overview', 'Departure readiness'],
   },
   {
-    icon: CalendarCheck,
-    title: 'Contactor-Guaranteed Reservations',
-    description:
-      'Drivers hold bays in advance. Automated hardware relays lock out unreserved vehicles until the verified driver arrives and scans in.',
-    badge: 'Zero Bay Collisions',
-  },
-  {
-    icon: Wallet,
-    title: 'Split-Settlement Wallet Engine',
-    description:
-      'Unified billing orchestrates driver wallet debits, operator revenue splits, and tax compliance automatically on session completion.',
-    badge: 'Instant Payouts',
-  },
-  {
-    icon: Lock,
-    title: 'ISO 15118 Encrypted Handshake',
-    description:
-      'End-to-end TLS 1.3 cryptographic key exchange ensures Plug & Charge vehicle authentication with zero risk of connector spoofing.',
-    badge: 'Bank-Grade Security',
+    id: 'admin', label: 'Network Admins', icon: Shield, eyebrow: 'NETWORK CONTROL CENTER',
+    title: 'One view across the network',
+    description: 'Bring station health, network activity, and access controls together in a single operating view.',
+    points: ['Network-wide health', 'Role-based access', 'Clear issue triage'],
   },
 ]
+const heroWords = ['motion.', 'sync.', 'control.']
 
-const TESTIMONIALS = [
-  {
-    quote:
-      'We migrated 90 delivery vans onto VoltGrid and slashed our depot electricity bill by 28%. The automated off-peak night scheduling alone paid for the system within two months.',
-    name: 'Sofia Marino',
-    role: 'Head of Fleet Operations, Swift Logistics',
-    metric: '-28% Fleet Energy Cost',
-  },
-  {
-    quote:
-      'Real-time digital twin monitoring transformed our portfolio. We now catch connector latch faults before drivers even report them, maintaining a 99.8% uptime across all our fast hubs.',
-    name: 'Amara Diallo',
-    role: 'Managing Director, CityCharge Infrastructure',
-    metric: '99.8% Station Availability',
-  },
-  {
-    quote:
-      'I commute 40 miles daily. Reserving my bay on the way into the city guarantees I never waste time queuing. The live battery curve on my phone is unbelievably responsive.',
-    name: 'Jordan Lee',
-    role: 'EV Driver & Daily Commuter, San Francisco',
-    metric: 'Zero Queuing Time',
-  },
-]
+function Brand() {
+  return <Link className="vg2-brand" to="/" aria-label="VoltGrid home">
+    <span className="vg2-brand-mark"><Zap size={19} fill="currentColor" /></span>
+    <span>VoltGrid</span><span className="vg2-version">2.0</span>
+  </Link>
+}
 
-const FOOTER_COLUMNS = [
-  {
-    title: 'Platform',
-    links: [
-      { label: 'Network Map', href: '/driver/stations' },
-      { label: 'Kiosk Simulator', href: '/operator/kiosk' },
-      { label: 'Role Features', href: '#solutions' },
-      { label: 'Pricing Plans', href: '#pricing' },
-      { label: 'Architecture Modules', href: '/modules' },
-    ],
-  },
-  {
-    title: 'Stakeholders',
-    links: [
-      { label: 'For EV Drivers', href: '/register?role=driver' },
-      { label: 'For Station Operators', href: '/register?role=operator' },
-      { label: 'For Commercial Fleets', href: '/register?role=fleet' },
-      { label: 'For Hardware Manufacturers', href: '#features' },
-    ],
-  },
-  {
-    title: 'Standards & Protocols',
-    links: [
-      { label: 'OCPP 2.0.1 & 1.6J', href: '#features' },
-      { label: 'ISO 15118 Plug & Charge', href: '#features' },
-      { label: 'OpenADR 2.0b Demand Response', href: '#features' },
-      { label: 'API & Webhooks', href: '/modules' },
-    ],
-  },
-  {
-    title: 'Company & Trust',
-    links: [
-      { label: 'System Status (99.9%)', href: '#' },
-      { label: 'Security & Encryption', href: '#' },
-      { label: 'Privacy Policy', href: '#' },
-      { label: 'Contact Engineering', href: '#' },
-    ],
-  },
-]
+function Header({ onDemo }) {
+  const [open, setOpen] = useState(false)
+  return <header className="vg2-header"><div className="vg2-shell vg2-header-inner">
+    <Brand />
+    <nav className={open ? 'vg2-nav is-open' : 'vg2-nav'} aria-label="Main navigation">
+      <a href="#hero-visual" onClick={() => setOpen(false)}>How it works</a>
+      <a href="#personas" onClick={() => setOpen(false)}>Solutions</a>
+      <a href="#features" onClick={() => setOpen(false)}>Modules</a>
+      <a href="#hero-visual" onClick={() => setOpen(false)}>Network Health</a>
+      <button className="vg2-mobile-demo" type="button" onClick={() => { setOpen(false); onDemo() }}>Simulate Booking</button>
+    </nav>
+    <div className="vg2-header-actions">
+      <button className="vg2-button vg2-button-quiet vg2-demo-header" type="button" onClick={onDemo}><span className="vg2-live-dot" /> Simulate Booking</button>
+      <Link className="vg2-button vg2-button-primary vg2-button-small" to="/register">Get started <ArrowRight size={16} /></Link>
+    </div>
+    <button className="vg2-menu" type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'}>{open ? <X size={22} /> : <Menu size={22} />}</button>
+  </div></header>
+}
 
-function Navbar() {
-  const { theme, setTheme } = useTheme()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+function RotatingWord() {
+  const [wordIndex, setWordIndex] = useState(0)
+  const [letters, setLetters] = useState(null)
+  const intervalRef = useRef(0)
+  const indexRef = useRef(0)
 
-  return (
-    <header className="fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-[#060A14]/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-transform group-hover:scale-105">
-            <Zap className="h-5 w-5 font-black fill-current" />
-          </span>
-          <div className="flex flex-col">
-            <span className="text-base font-extrabold tracking-tight text-white flex items-center gap-1">
-              VoltGrid <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">SaaS</span>
-            </span>
-          </div>
-        </Link>
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const rotate = () => {
+      if (document.hidden) return
+      indexRef.current = (indexRef.current + 1) % heroWords.length
+      const next = heroWords[indexRef.current]
+      setWordIndex(indexRef.current)
+      window.clearInterval(intervalRef.current)
+      if (media.matches) { setLetters(null); return }
+      let frame = 0
+      intervalRef.current = window.setInterval(() => {
+        frame += 1
+        const revealed = Math.max(0, Math.floor(((frame - 6) / 16) * next.length))
+        setLetters(Array.from(next, (character, index) => ({
+          character: index < revealed ? character : 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)],
+          settled: index < revealed,
+        })))
+        if (frame >= 22) { window.clearInterval(intervalRef.current); setLetters(null) }
+      }, 32)
+    }
+    const timer = window.setInterval(rotate, 3800)
+    return () => { window.clearInterval(timer); window.clearInterval(intervalRef.current) }
+  }, [])
 
-        {/* Desktop Nav Links */}
-        <nav className="hidden items-center gap-7 md:flex">
-          <a href="#solutions" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
-            Solutions
-          </a>
-          <a href="#telemetry-demo" className="text-xs font-medium text-slate-300 transition-colors hover:text-cyan-400">
-            Hardware Sandbox
-          </a>
-          <a href="#features" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
-            Capabilities
-          </a>
-          <a href="#pricing" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
-            Pricing
-          </a>
-          <Link to="/modules" className="text-xs font-medium text-slate-300 transition-colors hover:text-emerald-400">
-            Modules
-          </Link>
-        </nav>
+  return <><span className="vg2-rotating" aria-hidden="true">in <span className="vg2-word">{letters ? letters.map(({ character, settled }, index) => <span key={index} className={settled ? '' : 'vg2-scramble'}>{character}</span>) : heroWords[wordIndex]}</span></span><span className="vg2-sr-only">in {heroWords[wordIndex]}</span></>
+}
 
-        {/* Header Actions */}
-        <div className="flex items-center gap-2.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Toggle theme"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="text-slate-300 hover:text-white hover:bg-white/5"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
-          </Button>
+function TelemetryPanel({ boosted, setBoosted, resetToken, setResetToken, soc }) {
+  return <div className="vg2-telemetry vg2-glass" id="hero-visual">
+    <div className="vg2-window-top">
+      <div className="vg2-window-name"><span className="vg2-window-dots"><i /><i /><i /></span><span>VoltGrid // Real-time Telemetry Canvas</span></div>
+      <div className="vg2-window-status"><span className="vg2-live-dot" /><span className={boosted ? 'is-boosted' : ''}>STATUS: {boosted ? 'BOOSTED (180 kW)' : 'OPTIMAL (148 kW)'}</span><span className="vg2-bay-id">BAY 04 / DC FAST</span></div>
+    </div>
+    <div className="vg2-canvas-wrap">
+      <TelemetryCanvas boosted={boosted} resetToken={resetToken} />
+      <div className="vg2-float vg2-grid-load vg2-glass"><span>GRID LOAD BALANCE</span><strong>98.4% <small>+2.1 kW peak</small></strong></div>
+      <div className="vg2-float vg2-soc vg2-glass"><div><span>SOC BATTERY</span><strong>{soc}%</strong></div><div className="vg2-meter"><span style={{ width: `${soc}%` }} /></div><div><span>EST. TIME LEFT</span><b>12 MINS</b></div></div>
+      <div className="vg2-canvas-controls"><button type="button" onClick={() => setBoosted(!boosted)}><Zap size={15} /> {boosted ? 'Standard Rate (148kW)' : 'Boost Power (180kW)'}</button><button type="button" onClick={() => setResetToken(resetToken + 1)} aria-label="Reset energy flow simulation" title="Reset energy flow simulation"><RefreshCw size={16} /></button></div>
+    </div>
+    <div className="vg2-metrics">
+      <div><span className="vg2-metric-icon"><Cpu size={20} /></span><span><small>STATION HEALTH</small><strong>99.98% Online</strong></span></div>
+      <div><span className="vg2-metric-icon"><Gauge size={20} /></span><span><small>DISPATCH TIME</small><strong>&lt; 420ms latency</strong></span></div>
+      <div><span className="vg2-metric-icon"><ShieldCheck size={20} /></span><span><small>ISO 15118 READY</small><strong>Plug &amp; Charge</strong></span></div>
+      <div><span className="vg2-metric-icon"><Activity size={20} /></span><span><small>ACTIVE BAYS</small><strong>1,420 Connected</strong></span></div>
+    </div>
+  </div>
+}
 
-          <Button variant="ghost" asChild className="hidden text-xs font-medium text-slate-200 hover:text-white hover:bg-white/5 sm:inline-flex">
-            <Link to="/login">Sign In</Link>
-          </Button>
+function RolePreview({ role, onDemo }) {
+  if (role === 'driver') return <div className="vg2-preview">
+    <div className="vg2-preview-top"><span>NEARBY CHARGER #408</span><em>AVAILABLE NOW</em></div>
+    <div className="vg2-preview-main"><div><strong>VoltGrid SuperHub Central</strong><p>0.8 miles away · 350 kW CCS2 Fast Charger</p></div><button className="vg2-button vg2-button-primary vg2-button-small" type="button" onClick={onDemo}>Reserve Bay 02</button></div>
+    <div className="vg2-preview-row"><span>Pre-conditioning status</span><b>Battery primed (28°C)</b></div>
+  </div>
+  if (role === 'operator') return <div className="vg2-preview"><div className="vg2-preview-top"><span>SITE TOTAL POWER</span><em>480 kW ACTIVE</em></div><div className="vg2-preview-tiles"><div><small>BAY 01 · DC FAST</small><strong>150 kW charging</strong><span>Connector healthy</span></div><div><small>BAY 02 · DC FAST</small><strong>180 kW charging</strong><span>Connector healthy</span></div></div><div className="vg2-preview-row"><span>Open faults</span><b>0 critical</b></div></div>
+  if (role === 'fleet') return <div className="vg2-preview"><div className="vg2-preview-top"><span>DEPOT FLEET SCHEDULE</span><em>NIGHT SHIFT</em></div><div className="vg2-preview-list"><div><span>EV-104 · Route A</span><b>Ready by 05:30</b></div><div><span>EV-208 · Route C</span><b>Ready by 06:15</b></div><div><span>EV-311 · Route D</span><b>Charging now</b></div></div><div className="vg2-preview-row"><span>Departure readiness</span><b>12 / 14 vehicles</b></div></div>
+  return <div className="vg2-preview"><div className="vg2-preview-top"><span>NETWORK CONTROL CENTER</span><em>ALL SYSTEMS NORMAL</em></div><div className="vg2-preview-tiles vg2-preview-tiles-3"><div><small>ONLINE SITES</small><strong>24 / 24</strong><span>Connected</span></div><div><small>LIVE SESSIONS</small><strong>328</strong><span>Charging</span></div><div><small>ALERTS</small><strong>02</strong><span>Need review</span></div></div><div className="vg2-preview-row"><span>Last network sync</span><b>Just now</b></div></div>
+}
 
-          <Button
-            asChild
-            className="rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-600 px-4 text-xs font-semibold text-white shadow-emerald-glow hover:shadow-[0_0_25px_rgba(16,185,129,0.5)]"
-          >
-            <Link to="/register">Launch Console</Link>
-          </Button>
+function RoleSection({ onDemo }) {
+  const [active, setActive] = useState('driver')
+  const current = roles.find((role) => role.id === active)
+  return <section className="vg2-section vg2-personas" id="personas"><div className="vg2-shell">
+    <div className="vg2-section-heading"><span className="vg2-section-pill"><Users size={15} /> TAILORED WORKSPACES</span><h2>Built for everyone behind every kilowatt.</h2><p>Select a role to see how VoltGrid brings the charging ecosystem together.</p></div>
+    <div className="vg2-tab-scroll"><div className="vg2-tabs vg2-glass" role="tablist" aria-label="VoltGrid workspaces">{roles.map(({ id, label, icon: Icon }) => <button key={id} id={`vg2-tab-${id}`} type="button" role="tab" aria-controls="vg2-role-panel" aria-selected={active === id} className={active === id ? 'is-active' : ''} onClick={() => setActive(id)}><Icon size={17} /> {label}</button>)}</div></div>
+    <div className="vg2-role-card vg2-glass" id="vg2-role-panel" role="tabpanel" aria-labelledby={`vg2-tab-${active}`} key={active}><div className="vg2-role-copy"><span className="vg2-overline">{current.eyebrow}</span><h3>{current.title}</h3><p>{current.description}</p><ul>{current.points.map((point) => <li key={point}><CheckCircle2 size={16} /> {point}</li>)}</ul></div><RolePreview role={active} onDemo={onDemo} /></div>
+  </div></section>
+}
 
-          {/* Mobile hamburger toggle */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-300 hover:text-white md:hidden"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
+function FeatureCard({ icon: Icon, eyebrow, title, text, children, wide = false }) {
+  return <article className={`vg2-feature vg2-glass${wide ? ' is-wide' : ''}`}><div className="vg2-feature-head"><span className="vg2-feature-icon"><Icon size={22} /></span><span className="vg2-overline">{eyebrow}</span></div><h3>{title}</h3><p>{text}</p>{children}</article>
+}
 
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="border-b border-white/10 bg-[#070D1A] px-5 py-4 md:hidden">
-          <nav className="flex flex-col gap-3">
-            <a
-              href="#solutions"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-200 py-1"
-            >
-              Solutions
-            </a>
-            <a
-              href="#telemetry-demo"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-cyan-300 py-1"
-            >
-              Hardware Sandbox
-            </a>
-            <a
-              href="#features"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-200 py-1"
-            >
-              Capabilities
-            </a>
-            <a
-              href="#pricing"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-200 py-1"
-            >
-              Pricing
-            </a>
-            <Link
-              to="/modules"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-200 py-1"
-            >
-              Modules
-            </Link>
-            <div className="mt-3 flex gap-2 border-t border-white/10 pt-3">
-              <Button asChild variant="outline" className="flex-1 text-xs">
-                <Link to="/login">Sign In</Link>
-              </Button>
-              <Button asChild className="flex-1 bg-emerald-500 text-xs font-bold text-slate-950">
-                <Link to="/register">Get Started</Link>
-              </Button>
-            </div>
-          </nav>
-        </div>
-      )}
-    </header>
-  )
+function Features() {
+  return <section className="vg2-section vg2-features" id="features"><div className="vg2-shell"><div className="vg2-section-heading"><h2>Engineered for grid-scale performance.</h2><p>Everything you need to orchestrate electric power delivery in one connected platform.</p></div><div className="vg2-feature-grid">
+    <FeatureCard icon={Activity} eyebrow="DYNAMIC LOAD BALANCING" title="Grid load in clear view" text="See demand across active chargers and make room for the next session." wide><div className="vg2-feature-widget"><div><span>DEMAND CAPACITY</span><b>820 kW / 1000 kW</b></div><div className="vg2-capacity"><span /></div><div><small>Bay 01 · 150 kW</small><small>Bay 02 · 120 kW</small><small>Bay 03 · Idle</small></div></div></FeatureCard>
+    <FeatureCard icon={Radio} eyebrow="CONNECTOR HEALTH" title="Faults before friction" text="Track connector status and surface faults before a driver reaches the bay."><div className="vg2-feature-stat"><span>Connector status</span><b>Healthy</b></div></FeatureCard>
+    <FeatureCard icon={CalendarDays} eyebrow="FLEET DEPOT SCHEDULING" title="Route-aware charging" text="Plan charge windows around departure times and available depot power."><div className="vg2-feature-stat"><span>Next departure</span><b>05:30</b></div></FeatureCard>
+    <FeatureCard icon={ShieldCheck} eyebrow="CONNECTED STANDARDS" title="Built for an open charging network" text="Connect vehicles, hardware, and operations through widely used charging standards." wide><div className="vg2-standards"><span>OCPP 1.6 / 2.0.1</span><span>ISO 15118</span><span>OCPI roaming</span><span>OpenADR</span></div></FeatureCard>
+  </div></div></section>
+}
+
+function DemoModal({ onClose, onConfirm, target, setTarget, selectedBay, setSelectedBay, confirmed }) {
+  const closeRef = useRef(null)
+  useEffect(() => {
+    closeRef.current?.focus()
+    const escape = (event) => { if (event.key === 'Escape') onClose() }
+    document.addEventListener('keydown', escape)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', escape); document.body.style.overflow = previousOverflow }
+  }, [onClose])
+  return <div className="vg2-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="vg2-modal vg2-glass" role="dialog" aria-modal="true" aria-labelledby="vg2-modal-title"><div className="vg2-modal-top"><h2 id="vg2-modal-title"><Zap size={19} /> Simulate a charger reservation</h2><button ref={closeRef} type="button" onClick={onClose} aria-label="Close simulation"><X size={20} /></button></div><p className="vg2-modal-note">Interactive preview only. No real bay is reserved.</p><label htmlFor="vg2-bay">SELECT BAY</label><select id="vg2-bay" value={selectedBay} onChange={(event) => setSelectedBay(event.target.value)}><option value="Bay 01 · 150 kW DC fast">Bay 01 · 150 kW DC fast</option><option value="Bay 02 · 350 kW ultra fast">Bay 02 · 350 kW ultra fast</option></select><label htmlFor="vg2-target">TARGET BATTERY CHARGE</label><input id="vg2-target" type="range" min="25" max="100" value={target} onChange={(event) => setTarget(Number(event.target.value))} /><div className="vg2-range-label"><span>Current: 24%</span><span>Target: {target}%</span></div>{confirmed && <div className="vg2-confirmed" role="status"><CheckCircle2 size={18} /> Demo flow started for {selectedBay}.</div>}<button className="vg2-button vg2-button-primary vg2-modal-confirm" type="button" onClick={onConfirm}>{confirmed ? 'Run simulation again' : 'Start reservation simulation'} <ArrowRight size={17} /></button></div></div>
 }
 
 export default function Landing() {
-  return (
-    <div className="relative min-h-screen bg-[#070A12] text-slate-100 selection:bg-emerald-500/30 selection:text-white">
-      {/* Sticky Translucent Navbar */}
-      <Navbar />
+  const [boosted, setBoosted] = useState(false)
+  const [resetToken, setResetToken] = useState(0)
+  const [demoOpen, setDemoOpen] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [selectedBay, setSelectedBay] = useState('Bay 02 · 350 kW ultra fast')
+  const [target, setTarget] = useState(80)
+  const [soc, setSoc] = useState(74)
+  const showDemo = () => { setConfirmed(false); setDemoOpen(true) }
+  const confirmDemo = () => { setConfirmed(true); setBoosted(true); setSoc(Math.min(target, 100)); setResetToken((value) => value + 1) }
+  const showFlow = () => { setBoosted(true); document.getElementById('hero-visual')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
 
-      {/* Ambient Electric Energy Background */}
-      <EnergyBackground />
-
-      <main className="relative z-10">
-        {/* Section 1: Hero Section with Live SaaS Preview */}
-        <HeroSection />
-
-        {/* Section 2: Continuous Auto-scrolling Network Stats Ticker */}
-        <NetworkTicker />
-
-        {/* Brand Logos Bar */}
-        <section className="relative border-b border-white/10 bg-[#060911]/60 py-8 backdrop-blur-sm">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <p className="text-center font-mono text-[11px] uppercase tracking-widest text-slate-500">
-              Trusted by Progressive Fleet & Charging Networks
-            </p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-              {LOGOS.map((name, i) => (
-                <span
-                  key={i}
-                  className="font-mono text-xs font-semibold text-slate-400/80 transition-colors hover:text-emerald-400"
-                >
-                  {name}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Section 3: Role-Based Feature Tabs (Drivers, Operators, Fleet Managers) */}
-        <RoleTabsSection />
-
-        {/* Section 4: Live Kiosk & Telemetry Interactive Hardware Twin Widget */}
-        <KioskTelemetryDemo />
-
-        {/* Section 5: Core Enterprise Capabilities Grid */}
-        <section id="features" className="relative scroll-mt-24 py-20 lg:py-28">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mx-auto max-w-3xl text-center">
-              <Badge
-                variant="outline"
-                className="mb-3 border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"
-              >
-                Core Architecture
-              </Badge>
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
-                Engineered for High-Voltage{' '}
-                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                  Reliability
-                </span>
-              </h2>
-              <p className="mt-4 text-base text-slate-400 sm:text-lg">
-                VoltGrid bridges cloud software with mission-critical power electronics. Built on open standards with
-                zero vendor lock-in.
-              </p>
-            </div>
-
-            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {CORE_CAPABILITIES.map((cap, i) => {
-                const Icon = cap.icon
-                return (
-                  <motion.div
-                    key={i}
-                    whileHover={{ y: -4 }}
-                    transition={{ duration: 0.25 }}
-                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0A101D]/90 p-6 backdrop-blur-xl transition-all duration-300 hover:border-emerald-500/40 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/30 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <Badge className="border-white/10 bg-[#0E1626] font-mono text-[10px] text-slate-400">
-                        {cap.badge}
-                      </Badge>
-                    </div>
-
-                    <h3 className="mt-5 text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                      {cap.title}
-                    </h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-400">{cap.description}</p>
-                  </motion.div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Section 6: Customer Testimonials & Verified Metrics */}
-        <section className="relative border-y border-white/10 bg-[#060911]/80 py-20 lg:py-28 backdrop-blur-md">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mx-auto max-w-2xl text-center">
-              <Badge
-                variant="outline"
-                className="mb-3 border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-300"
-              >
-                Validated Impact
-              </Badge>
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Trusted Across Kilowatts & Miles
-              </h2>
-            </div>
-
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
-              {TESTIMONIALS.map((t, idx) => (
-                <div
-                  key={idx}
-                  className="relative flex flex-col justify-between rounded-2xl border border-white/10 bg-[#0B1220]/90 p-6 backdrop-blur-xl shadow-lg"
-                >
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <Quote className="h-6 w-6 text-emerald-400/40" />
-                      <Badge className="border-emerald-500/40 bg-emerald-950/40 text-[10px] font-mono text-emerald-300">
-                        {t.metric}
-                      </Badge>
-                    </div>
-                    <p className="mt-4 text-xs leading-relaxed text-slate-300 italic sm:text-sm">
-                      &ldquo;{t.quote}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="mt-6 border-t border-white/10 pt-4">
-                    <p className="text-xs font-bold text-white">{t.name}</p>
-                    <p className="text-[11px] text-slate-400">{t.role}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Section 7: Modern Pricing & Role Onboarding Cards */}
-        <PricingSection />
-
-        {/* Section 8: High-Impact Conversion Banner */}
-        <section className="relative py-16 lg:py-24">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/40 bg-gradient-to-b from-[#0C172B] to-[#070D18] p-8 text-center shadow-2xl backdrop-blur-2xl sm:p-14">
-              {/* Internal glowing orbs */}
-              <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
-              <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
-
-              <div className="relative z-10 mx-auto max-w-2xl">
-                <Badge className="mb-4 border-emerald-400/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300">
-                  ⚡ 5-Minute Onboarding
-                </Badge>
-                <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-5xl">
-                  Ready to Plug Into the Cyber Grid?
-                </h2>
-                <p className="mt-4 text-sm leading-relaxed text-slate-300 sm:text-base">
-                  Join thousands of drivers, station operators, and fleet managers orchestrating high-voltage charging
-                  with guaranteed reliability.
-                </p>
-
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                  <Button
-                    size="lg"
-                    asChild
-                    className="h-12 rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-600 px-7 font-bold text-white shadow-emerald-glow hover:shadow-[0_0_35px_rgba(16,185,129,0.55)]"
-                  >
-                    <Link to="/register" className="flex items-center gap-2">
-                      Launch Console / Get Started
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    asChild
-                    className="h-12 rounded-xl border border-white/10 bg-[#0C1527] px-6 font-medium text-slate-200 hover:border-cyan-500/40 hover:text-cyan-300"
-                  >
-                    <Link to="/driver/stations">Explore Live Stations</Link>
-                  </Button>
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Free driver accounts
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" /> Instant operator deployment
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> 24/7 technical hotline
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Comprehensive Modern Footer */}
-      <footer className="relative z-10 border-t border-white/10 bg-[#050811] text-xs text-slate-400">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-          <div className="grid gap-10 md:grid-cols-5">
-            {/* Brand column */}
-            <div className="md:col-span-2">
-              <Link to="/" className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black">
-                  <Zap className="h-4 w-4 fill-current" />
-                </span>
-                <span className="text-base font-extrabold tracking-tight text-white">VoltGrid</span>
-              </Link>
-              <p className="mt-3 max-w-sm text-xs leading-relaxed text-slate-400">
-                The next-generation smart charging infrastructure network. Seamless EV charging telemetry, guaranteed
-                bay reservations, and commercial fleet optimization.
-              </p>
-
-              {/* Status Ping */}
-              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-3 py-1 text-[11px] text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>All 42 SuperHubs Operational · 99.9% Uptime</span>
-              </div>
-            </div>
-
-            {/* Links Columns */}
-            {FOOTER_COLUMNS.slice(0, 3).map((col) => (
-              <div key={col.title}>
-                <p className="font-semibold text-white">{col.title}</p>
-                <ul className="mt-3 space-y-2">
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      {link.href.startsWith('/') ? (
-                        <Link to={link.href} className="transition-colors hover:text-emerald-400">
-                          {link.label}
-                        </Link>
-                      ) : (
-                        <a href={link.href} className="transition-colors hover:text-emerald-400">
-                          {link.label}
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 text-[11px] text-slate-500">
-            <p>© {new Date().getFullYear()} VoltGrid Infrastructure Technologies Inc. All rights reserved.</p>
-            <div className="flex gap-6">
-              <span className="hover:text-slate-400">OCPP 2.0.1 Ready</span>
-              <span className="hover:text-slate-400">ISO 15118 Certified</span>
-              <span className="hover:text-slate-400">SOC 2 Type II Audited</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
-  )
+  return <div className="vg2-landing"><Header onDemo={showDemo} /><main>
+    <section className="vg2-hero"><div className="vg2-shell"><div className="vg2-hero-composition"><div className="vg2-hero-copy"><span className="vg2-eyebrow"><span className="vg2-live-dot" /> VoltGrid 2.0 <i>•</i> The connected EV infrastructure platform <ArrowUpRight size={15} /></span><h1><span>Every charge</span><RotatingWord /></h1></div><div className="vg2-hero-side"><p>One unified platform to locate chargers, operate stations, and orchestrate electric fleets. Built with sub-second telemetry for drivers, operators, and grid managers.</p><div className="vg2-hero-actions"><a className="vg2-button vg2-button-primary" href="#personas">Explore Live Dashboard <ArrowRight size={18} /></a><button className="vg2-button vg2-button-quiet" type="button" onClick={showFlow}><PlayCircle size={19} /> Watch Energy Flow</button></div></div></div><TelemetryPanel boosted={boosted} setBoosted={setBoosted} resetToken={resetToken} setResetToken={setResetToken} soc={soc} /></div></section>
+    <section className="vg2-network-strip"><div className="vg2-shell"><p>THE CONNECTED EV ENERGY ECOSYSTEM</p><div><span><Zap size={20} /> Grid energy</span><span><Radio size={20} /> Fast charging</span><span><Navigation size={20} /> Route planning</span><span><Layers3 size={20} /> Depot operations</span><span><Globe2 size={20} /> Network insight</span></div></div></section>
+    <RoleSection onDemo={showDemo} /><Features />
+    <section className="vg2-final"><div className="vg2-shell"><div className="vg2-final-card vg2-glass"><span className="vg2-section-pill"><BatteryCharging size={15} /> MOVE WITH VOLTGRID</span><h2>Ready to electrify your network?</h2><p>Bring charging, station operations, and fleet movement into one connected view.</p><div><Link className="vg2-button vg2-button-primary" to="/register">Get started <ArrowRight size={18} /></Link><Link className="vg2-button vg2-button-quiet" to="/modules">Explore modules <ArrowRight size={18} /></Link></div></div></div></section>
+  </main><footer className="vg2-footer"><div className="vg2-shell"><Brand /><span>© {new Date().getFullYear()} VoltGrid</span><div><Link to="/modules">Modules</Link><Link to="/login">Sign in</Link><Link to="/register">Get started</Link></div></div></footer>{demoOpen && <DemoModal onClose={() => setDemoOpen(false)} onConfirm={confirmDemo} target={target} setTarget={setTarget} selectedBay={selectedBay} setSelectedBay={setSelectedBay} confirmed={confirmed} />}</div>
 }
