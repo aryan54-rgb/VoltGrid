@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Clock,
   MapPin,
+  RefreshCw,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -30,10 +31,14 @@ import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQueries, useQuery } from '@/hooks/use-query'
 import { useAuth } from '@/context/auth'
 import { fetchStation, fetchConnectorsFor } from '@/lib/api/stations'
-import { fetchSlotAvailability, createReservation } from '@/lib/api/reservations'
+import {
+  fetchSlotAvailability,
+  createReservation,
+  fetchBookNowAvailability,
+  requestBookNow,
+} from '@/lib/api/reservations'
 import { fetchWallet } from '@/lib/api/wallet'
 
-const BASE_DATE = '2026-07-31'
 const SLOT_MINUTES = 30
 
 const STEPS = [
@@ -42,20 +47,34 @@ const STEPS = [
   { id: 3, label: 'Review' },
 ]
 
-/** Deterministic next-5-days list built from a fixed base date string. */
+/** Station dates follow India time, regardless of the driver's device timezone. */
+function indiaToday() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const part = (type) => parts.find((item) => item.type === type).value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+function indiaClock() {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date())
+}
+
 function nextDates(baseIso, count) {
   const [y, m, d] = baseIso.split('-').map(Number)
   const out = []
   for (let i = 0; i < count; i += 1) {
-    const dt = new Date(y, m - 1, d + i)
-    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(
-      dt.getDate()
+    const dt = new Date(Date.UTC(y, m - 1, d + i))
+    const iso = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(
+      dt.getUTCDate()
     ).padStart(2, '0')}`
     out.push({
       iso,
-      weekday: dt.toLocaleDateString('en-US', { weekday: 'short' }),
-      day: dt.getDate(),
-      month: dt.toLocaleDateString('en-US', { month: 'short' }),
+      weekday: dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+      day: dt.getUTCDate(),
+      month: dt.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
     })
   }
   return out
@@ -65,16 +84,31 @@ export default function Booking() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const dates = React.useMemo(() => nextDates(BASE_DATE, 5), [])
+  const [today, setToday] = React.useState(indiaToday)
+  const [currentTime, setCurrentTime] = React.useState(indiaClock)
+  const dates = React.useMemo(() => nextDates(today, 5), [today])
 
   const [step, setStep] = React.useState(1)
   const [connectorType, setConnectorType] = React.useState(null)
-  const [date, setDate] = React.useState(dates[0].iso)
+  const [date, setDate] = React.useState(today)
   const [slotId, setSlotId] = React.useState(null)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [booking, setBooking] = React.useState(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [submitError, setSubmitError] = React.useState(null)
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => {
+      const current = indiaToday()
+      setCurrentTime(indiaClock())
+      if (current !== today) {
+        setToday(current)
+        setDate(current)
+        setSlotId(null)
+      }
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [today])
 
   const base = useQueries(
     {
@@ -91,21 +125,50 @@ export default function Booking() {
   // Availability is per station *and* per day, so it reloads when the date
   // changes rather than being read once at mount.
   const slots = useQuery(() => fetchSlotAvailability(id, date), [id, date])
+  const nowAvailability = useQuery(
+    () => fetchBookNowAvailability(id, connectorType),
+    [id, connectorType],
+    { enabled: step === 2 && Boolean(connectorType) }
+  )
+  React.useEffect(() => {
+    if (step !== 2 || !connectorType) return undefined
+    const timer = window.setInterval(nowAvailability.refetch, 30_000)
+    return () => window.clearInterval(timer)
+  }, [step, connectorType, nowAvailability.refetch])
   const timeSlots = React.useMemo(() => slots.data ?? [], [slots.data])
 
   const connector = station?.connectors.find((c) => c.type === connectorType) ?? null
   const slot = timeSlots.find((t) => t.id === slotId) ?? null
-  const freeSlots = timeSlots.filter((t) => t.available).length
+  const isFutureSlot = (t) => date > today || (date === today && t.startTime > currentTime)
+  const freeSlots = timeSlots.filter((t) => t.available && isFutureSlot(t)).length
 
   const estKwh = connector
     ? Math.round(Math.min(connector.power * (SLOT_MINUTES / 60) * 0.8, 60) * 10) / 10
     : 0
   const estCost = station ? Math.round(estKwh * station.pricePerKwh * 100) / 100 : 0
 
-  const canContinue = step === 1 ? Boolean(connector) : step === 2 ? Boolean(slot) : true
+  const canContinue = step === 1 ? Boolean(connector) : step === 2 ? Boolean(slot?.available && isFutureSlot(slot)) : true
+
+  const bookNow = async () => {
+    if (!connectorType || !user || submitting) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const reservation = await requestBookNow(station.id, connectorType)
+      setBooking(reservation)
+      setConfirmOpen(true)
+      nowAvailability.refetch()
+      slots.refetch()
+    } catch (err) {
+      setSubmitError(err)
+      nowAvailability.refetch()
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const confirm = async () => {
-    if (!user || !slot || !connector) return
+    if (!user || !slot?.available || !isFutureSlot(slot) || !connector) return
     setSubmitting(true)
     setSubmitError(null)
     try {
@@ -271,16 +334,49 @@ export default function Booking() {
             transition={{ duration: 0.22 }}
             className="space-y-4"
           >
+            <Card className="border-primary/40 bg-primary/5">
+              <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-3">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Zap className="h-4 w-4 text-primary" /> Charge now
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Request a free {connectorType} charger for the next 30 minutes. Operator approval is required.
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" aria-label="Refresh charger availability" onClick={nowAvailability.refetch}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm">
+                  {nowAvailability.loading ? 'Checking chargers…' : nowAvailability.error ? (
+                    <span className="text-destructive">Could not check chargers right now</span>
+                  ) : (
+                    <span className="font-medium">
+                      {nowAvailability.data?.free ?? 0} of {nowAvailability.data?.total ?? 0} chargers free now
+                    </span>
+                  )}
+                </div>
+                <Button
+                  onClick={bookNow}
+                  disabled={submitting || nowAvailability.loading || Boolean(nowAvailability.error) || !nowAvailability.data?.free}
+                >
+                  <Zap /> {submitting ? 'Requesting…' : 'Request charger now'}
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Choose a date</CardTitle>
+                <CardTitle className="text-base">Or book for later</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {dates.map((d) => (
                   <button
                     key={d.iso}
                     type="button"
-                    onClick={() => setDate(d.iso)}
+                    onClick={() => { setDate(d.iso); setSlotId(null) }}
                     className={cn(
                       'flex min-w-[76px] cursor-pointer flex-col items-center rounded-xl border px-4 py-2.5 transition-colors hover:bg-accent/50',
                       date === d.iso && 'border-primary bg-primary/5 ring-2 ring-primary/30'
@@ -318,22 +414,23 @@ export default function Booking() {
                 )}
                 {timeSlots.map((t) => {
                   const selected = slotId === t.id
+                  const available = t.available && isFutureSlot(t)
                   return (
                     <button
                       key={t.id}
                       type="button"
-                      disabled={!t.available}
+                      disabled={!available}
                       onClick={() => setSlotId(t.id)}
                       className={cn(
                         'rounded-lg border px-2 py-2 text-center text-sm transition-colors',
-                        t.available
+                        available
                           ? 'cursor-pointer hover:bg-accent/50'
                           : 'cursor-not-allowed bg-muted text-muted-foreground',
                         selected && 'border-primary bg-primary/5 font-medium ring-2 ring-primary/30'
                       )}
                     >
                       <span className="block tabular-nums">{t.time}</span>
-                      {!t.available && <span className="block text-[10px]">Booked</span>}
+                      {!available && <span className="block text-[10px]">{t.available ? 'Past' : 'Booked'}</span>}
                     </button>
                   )
                 })}
@@ -473,7 +570,7 @@ export default function Booking() {
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">When</span>
               <span className="font-medium tabular-nums">
-                {formatDate(date)} · {slot?.time}
+                {booking?.date ? formatDate(booking.date) : '—'} · {booking?.time}
               </span>
             </div>
             <div className="flex items-center justify-between">

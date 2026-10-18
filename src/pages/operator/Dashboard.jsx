@@ -114,7 +114,7 @@ export default function Dashboard() {
               </defs>
               <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
               <XAxis dataKey="day" {...axisProps} interval="preserveStartEnd" />
-              <YAxis {...axisProps} width={40} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
+              <YAxis {...axisProps} width={40} tickFormatter={(v) => `₹${(v / 1000).toFixed(1)}k`} />
               <RTooltip
                 content={<ChartTooltip formatter={(v) => formatCurrency(v)} />}
                 cursor={{ stroke: 'var(--chart-axis)' }}

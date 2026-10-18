@@ -123,7 +123,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Monthly revenue"
-          value={monthlyRevenue == null ? '—' : `$${monthlyRevenue}k`}
+          value={monthlyRevenue == null ? '—' : `₹${monthlyRevenue}k`}
           delta={9.4}
           icon={DollarSign}
           index={1}
@@ -206,9 +206,9 @@ export default function Dashboard() {
               <BarChart data={revenueBySegment}>
                 <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
                 <XAxis dataKey="month" {...axisProps} />
-                <YAxis {...axisProps} width={40} tickFormatter={(v) => `$${v}k`} />
+                <YAxis {...axisProps} width={40} tickFormatter={(v) => `₹${v}k`} />
                 <RTooltip
-                  content={<ChartTooltip formatter={(v) => `$${v}k`} />}
+                  content={<ChartTooltip formatter={(v) => `₹${v}k`} />}
                   cursor={{ fill: 'var(--chart-grid)' }}
                 />
                 <Bar

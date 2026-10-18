@@ -409,7 +409,7 @@ export default function Marketplace() {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={GMV_BY_CATEGORY} layout="vertical" margin={{ left: 8, right: 16 }}>
             <CartesianGrid stroke={GRID} strokeDasharray="0" horizontal={false} />
-            <XAxis type="number" {...axisProps} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+            <XAxis type="number" {...axisProps} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
             <YAxis type="category" dataKey="category" {...axisProps} width={110} />
             <RTooltip
               content={<ChartTooltip formatter={(v) => formatCurrency(v)} />}

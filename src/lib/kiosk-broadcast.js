@@ -437,7 +437,7 @@ export const KioskEngine = {
     })
     if (startError) throw startError
 
-    const logs1 = addLog('info', 'PAYMENT', `Rate locked at $${Number(bookedSession.price_per_kwh).toFixed(2)}/kWh. Wallet payment is due after charging ends.`)
+    const logs1 = addLog('info', 'PAYMENT', `Rate locked at ₹${Number(bookedSession.price_per_kwh).toFixed(2)}/kWh. Wallet payment is due after charging ends.`)
     const logs2 = [
       {
         id: `log-${Date.now()}-c`,
@@ -730,7 +730,7 @@ export const KioskEngine = {
       }
     }
 
-    const logs1 = addLog('info', 'PAYMENT', `Session ended. Final amount due: $${finalCost.toFixed(2)}. Driver can pay from the active session screen.`)
+    const logs1 = addLog('info', 'PAYMENT', `Session ended. Final amount due: ₹${finalCost.toFixed(2)}. Driver can pay from the active session screen.`)
     const logs2 = [
       {
         id: `log-${Date.now()}-end`,

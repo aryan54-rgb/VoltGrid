@@ -176,7 +176,7 @@ export function PricingSection() {
                   {/* Price display with CountUp */}
                   <div className="mt-6 flex items-baseline gap-1">
                     <span className="font-mono text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-                      {price === 0 ? '$0' : <CountUp to={price} prefix="$" duration={0.6} />}
+                      {price === 0 ? '₹0' : <CountUp to={price} prefix="₹" duration={0.6} />}
                     </span>
                     <span className="text-xs text-slate-400 font-medium">/{tier.period}</span>
                   </div>

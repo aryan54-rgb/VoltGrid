@@ -34,7 +34,7 @@ const INSIGHTS = [
   {
     icon: PlugZap,
     title: 'Depot charging is the cheaper source',
-    text: 'Depot energy accounts for $7,420 of spend against $3,180 on public fast charging — a far lower cost per kWh.',
+    text: 'Depot energy accounts for ₹7,420 of spend against ₹3,180 on public fast charging — a far lower cost per kWh.',
   },
   {
     icon: TrendingUp,
@@ -98,7 +98,7 @@ export default function Analytics() {
         <StatCard label="Utilisation" value="81%" delta={3.8} icon={Gauge} index={0} />
         <StatCard label="Downtime" value="2.9%" delta={-19.4} deltaGoodWhen="down" icon={TimerOff} index={1} />
         <StatCard label="kWh per 100 km" value="21.4" delta={-1.8} deltaGoodWhen="down" icon={Zap} index={2} />
-        <StatCard label="Cost per km" value="$0.086" delta={-3.4} deltaGoodWhen="down" icon={DollarSign} index={3} />
+        <StatCard label="Cost per km" value="₹0.086" delta={-3.4} deltaGoodWhen="down" icon={DollarSign} index={3} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

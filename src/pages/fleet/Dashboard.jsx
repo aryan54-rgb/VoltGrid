@@ -78,7 +78,7 @@ export default function Dashboard() {
         <StatCard label="Fleet vehicles" value={fleetVehicles.length} delta={9} deltaLabel="vs last quarter" icon={Truck} index={0} />
         <StatCard label="Average state of charge" value={`${avgSoc}%`} delta={4} icon={BatteryCharging} index={1} />
         <StatCard label="Energy this week" value={`${formatNumber(weekEnergy)} kWh`} delta={5.7} deltaLabel="vs last week" icon={Zap} index={2} />
-        <StatCard label="Estimated cost this month" value="$12.4k" delta={-2.1} deltaGoodWhen="down" icon={DollarSign} index={3} />
+        <StatCard label="Estimated cost this month" value="₹12.4k" delta={-2.1} deltaGoodWhen="down" icon={DollarSign} index={3} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

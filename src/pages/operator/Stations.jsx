@@ -568,7 +568,7 @@ export default function Stations() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="st-price">Price per kWh ($ / ₹)</Label>
+                    <Label htmlFor="st-price">Price per kWh (₹)</Label>
                     <Input
                       id="st-price"
                       type="number"
@@ -671,7 +671,7 @@ export default function Stations() {
               </DialogHeader>
               <div className="space-y-4 p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
                 <div className="space-y-1.5">
-                  <Label htmlFor="mg-price">Price (USD / ₹ per kWh)</Label>
+                  <Label htmlFor="mg-price">Price (₹ per kWh)</Label>
                   <Input
                     id="mg-price"
                     type="number"

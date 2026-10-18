@@ -203,7 +203,7 @@ export default function Billing() {
           <BarChart data={spendTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
             <XAxis dataKey="period" {...axisProps} />
-            <YAxis {...axisProps} width={48} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+            <YAxis {...axisProps} width={48} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
             <RTooltip
               content={<ChartTooltip formatter={(v) => formatCurrency(v)} />}
               cursor={{ fill: 'var(--chart-grid)', opacity: 0.4 }}

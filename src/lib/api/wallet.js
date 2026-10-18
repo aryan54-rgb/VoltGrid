@@ -12,7 +12,7 @@ export function mapWallet(row, cards = []) {
   return {
     userId: row.user_id,
     balance: Number(row.balance ?? 0),
-    currency: row.currency ?? 'USD',
+    currency: row.currency ?? 'INR',
     autoTopUp: row.auto_top_up,
     autoTopUpThreshold: Number(row.auto_top_up_threshold ?? 0),
     autoTopUpAmount: Number(row.auto_top_up_amount ?? 0),
@@ -63,87 +63,43 @@ export async function fetchTransactions({ limit = 100 } = {}) {
   return rows.map(mapTransaction)
 }
 
-/**
- * Debit the wallet for something bought outside a charging session.
- *
- * Same ordering rule as topUp(): the ledger entry goes in first, so a failure
- * between the two statements leaves a recorded charge rather than a silent one.
- */
-export async function purchase(userId, amount, description, method = 'Wallet') {
-  const wallet = await supabase
-    .from('wallet_accounts')
-    .select('balance')
-    .eq('user_id', userId)
-    .single()
-    .then(unwrap)
-
-  await supabase.from('transactions').insert({
-    id: `tx-${Date.now().toString(36)}`,
-    user_id: userId,
-    type: 'purchase',
-    description,
-    amount: -Math.abs(amount),
-    status: 'completed',
-    method,
-  })
-
-  const row = await supabase
-    .from('wallet_accounts')
-    .update({ balance: Number(wallet.balance) - Math.abs(amount) })
-    .eq('user_id', userId)
-    .select('*')
-    .single()
-    .then(unwrap)
-  return mapWallet(row)
-}
-
 export async function updateAutoTopUp(userId, { enabled, threshold, amount }) {
-  const row = await supabase
-    .from('wallet_accounts')
-    .update({
-      auto_top_up: enabled,
-      ...(threshold == null ? {} : { auto_top_up_threshold: threshold }),
-      ...(amount == null ? {} : { auto_top_up_amount: amount }),
-    })
-    .eq('user_id', userId)
-    .select('*')
-    .single()
-    .then(unwrap)
-  return mapWallet(row)
+  const { data, error } = await supabase.rpc('update_wallet_preferences', {
+    p_enabled: enabled,
+    p_threshold: threshold ?? null,
+    p_amount: amount ?? null,
+  })
+  if (error) throw error
+  return mapWallet(data)
 }
 
-/**
- * Add funds and record the movement.
- *
- * Two statements rather than one: without a Postgres function there is no way
- * to make them atomic from the browser, so the ledger entry is written first —
- * a top-up that is recorded but not credited is recoverable, the reverse is
- * money that appears from nowhere.
- */
-export async function topUp(userId, amount, method = 'Wallet') {
-  const wallet = await supabase
-    .from('wallet_accounts')
-    .select('balance')
-    .eq('user_id', userId)
-    .single()
-    .then(unwrap)
+export async function createTopUpOrder(amount) {
+  const { data, error } = await supabase.functions.invoke('razorpay-create-order', { body: { amount } })
+  if (error) {
+    const detail = await error.context?.json?.().catch(() => null)
+    throw new Error(detail?.error ?? error.message)
+  }
+  return data
+}
 
-  await supabase.from('transactions').insert({
-    id: `tx-${Date.now().toString(36)}`,
-    user_id: userId,
-    type: 'topup',
-    description: 'Wallet top-up',
-    amount,
-    status: 'completed',
-    method,
+export async function verifyTopUpPayment(payment) {
+  const { data, error } = await supabase.functions.invoke('razorpay-verify-payment', { body: payment })
+  if (error) {
+    const detail = await error.context?.json?.().catch(() => null)
+    throw new Error(detail?.error ?? error.message)
+  }
+  return data
+}
+
+let checkoutScript
+export function loadRazorpayCheckout() {
+  if (window.Razorpay) return Promise.resolve()
+  checkoutScript ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = resolve
+    script.onerror = () => { checkoutScript = null; reject(new Error('Could not load Razorpay Checkout')) }
+    document.head.appendChild(script)
   })
-
-  const row = await supabase
-    .from('wallet_accounts')
-    .update({ balance: Number(wallet.balance) + amount })
-    .eq('user_id', userId)
-    .select('*')
-    .single()
-    .then(unwrap)
-  return mapWallet(row)
+  return checkoutScript
 }

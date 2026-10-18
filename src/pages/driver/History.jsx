@@ -321,7 +321,7 @@ export default function History() {
                 label={`Energy · ${selected.energy} kWh @ ${formatCurrency(receipt.ratePerKwh)}/kWh`}
                 value={formatCurrency(receipt.energyCost)}
               />
-              <Row label="Idle fee" value="$0.00" />
+              <Row label="Idle fee" value="₹0.00" />
               <Row label="Tax (8%)" value={formatCurrency(receipt.tax)} />
               <Separator />
               <Row label="Total" value={formatCurrency(receipt.total)} strong />

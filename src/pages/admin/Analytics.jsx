@@ -60,7 +60,7 @@ export default function Analytics() {
         <StatCard label="Monthly active users" value="14.6k" delta={13.2} icon={Users} index={0} />
         <StatCard label="Sessions per user" value="2.9" delta={3.6} icon={Repeat} index={1} />
         <StatCard label="Churn" value="1.8%" delta={-0.3} deltaGoodWhen="down" icon={UserMinus} index={2} />
-        <StatCard label="Average session cost" value="$14.20" delta={2.4} icon={DollarSign} index={3} />
+        <StatCard label="Average session cost" value="₹14.20" delta={2.4} icon={DollarSign} index={3} />
       </div>
 
       <QueryBoundary
@@ -135,9 +135,9 @@ export default function Analytics() {
               <BarChart data={revenueBySegment}>
                 <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
                 <XAxis dataKey="month" {...axisProps} />
-                <YAxis {...axisProps} width={40} tickFormatter={(v) => `$${v}k`} />
+                <YAxis {...axisProps} width={40} tickFormatter={(v) => `₹${v}k`} />
                 <RTooltip
-                  content={<ChartTooltip formatter={(v) => `$${v}k`} />}
+                  content={<ChartTooltip formatter={(v) => `₹${v}k`} />}
                   cursor={{ fill: 'var(--chart-grid)' }}
                 />
                 <Bar

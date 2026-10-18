@@ -36,7 +36,7 @@ export default function Settings() {
   // General
   const [orgName, setOrgName] = useState('VoltGrid Inc.')
   const [supportEmail, setSupportEmail] = useState('support@voltgrid.com')
-  const [currency, setCurrency] = useState('USD')
+  const [currency, setCurrency] = useState('INR')
   const [timezone, setTimezone] = useState('America/Los_Angeles')
   const [generalSaved, setGeneralSaved] = useState(false)
 
@@ -145,7 +145,7 @@ export default function Settings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USD">USD — US Dollar</SelectItem>
+                      <SelectItem value="INR">INR — Indian Rupee</SelectItem>
                       <SelectItem value="EUR">EUR — Euro</SelectItem>
                       <SelectItem value="GBP">GBP — Pound Sterling</SelectItem>
                       <SelectItem value="INR">INR — Indian Rupee</SelectItem>

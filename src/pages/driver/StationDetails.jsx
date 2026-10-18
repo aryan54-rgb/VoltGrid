@@ -181,6 +181,11 @@ export default function StationDetails() {
           <div className="flex flex-wrap gap-2">
             <Button asChild>
               <Link to={`/driver/stations/${station.id}/book`}>
+                <Zap /> Charge now
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to={`/driver/stations/${station.id}/book`}>
                 <CalendarPlus /> Book a slot
               </Link>
             </Button>

@@ -70,7 +70,10 @@ export default function Dashboard() {
     stations: fetchStations,
   })
 
-  const activeSession = query.data?.activeSession ?? null
+  // The session API also returns a recently completed session so the driver
+  // can settle its bill; only a running session belongs in this dashboard card.
+  const activeSession = query.data?.activeSession?.status === 'active'
+    ? query.data.activeSession : null
   const history = React.useMemo(() => query.data?.history ?? [], [query.data])
   const monthlyUsage = query.data?.usage ?? []
   const wallet = query.data?.wallet

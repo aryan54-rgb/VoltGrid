@@ -225,7 +225,7 @@ export default function Stations() {
                       {s.rating}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">${s.pricePerKwh.toFixed(2)}</TableCell>
+                  <TableCell className="text-right tabular-nums">₹{s.pricePerKwh.toFixed(2)}</TableCell>
                   <TableCell>
                     <StatusBadge status={s.status} />
                   </TableCell>
@@ -284,7 +284,7 @@ export default function Stations() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Price</p>
-                  <p className="font-medium tabular-nums">${detail.pricePerKwh.toFixed(2)} / kWh</p>
+                  <p className="font-medium tabular-nums">₹{detail.pricePerKwh.toFixed(2)} / kWh</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Utilization</p>
@@ -440,7 +440,7 @@ export default function Stations() {
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Price</span>
-                  <span className="font-medium tabular-nums">${form.price || '0.00'} / kWh</span>
+                  <span className="font-medium tabular-nums">₹{form.price || '0.00'} / kWh</span>
                 </div>
               </div>
               <DialogFooter>
@@ -457,7 +457,7 @@ export default function Stations() {
               </div>
               <DialogTitle>Station submitted</DialogTitle>
               <p className="text-sm text-muted-foreground">
-                {form.name} is queued for commissioning at ${form.price || '0.00'}/kWh. It appears on the
+                {form.name} is queued for commissioning at ₹{form.price || '0.00'}/kWh. It appears on the
                 network map once its connectors report in.
               </p>
               <Button variant="outline" className="mt-2" onClick={() => closeOnboard(false)}>Done</Button>

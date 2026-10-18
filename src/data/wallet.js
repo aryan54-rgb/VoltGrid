@@ -1,6 +1,6 @@
 export const wallet = {
   balance: 86.4,
-  currency: 'USD',
+  currency: 'INR',
   autoTopUp: true,
   autoTopUpThreshold: 20,
   autoTopUpAmount: 50,

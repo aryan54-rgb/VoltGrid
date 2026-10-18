@@ -210,7 +210,7 @@ export function RoleTabsSection() {
                       </div>
                       <div className="col-span-2 sm:col-span-1 rounded-xl border border-white/10 bg-[#0E1626] p-3">
                         <p className="text-[11px] text-slate-400">Energy Tariff</p>
-                        <p className="mt-1 font-semibold text-white">$0.38 / kWh</p>
+                        <p className="mt-1 font-semibold text-white">₹0.38 / kWh</p>
                         <p className="text-[10px] text-cyan-400">Wallet Supported</p>
                       </div>
                     </div>
@@ -276,7 +276,7 @@ export function RoleTabsSection() {
                       <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 font-mono">
                         <span>Speed: 146 kW</span>
                         <span>Estimated: 6 mins to 80%</span>
-                        <span>Cost: $16.42</span>
+                        <span>Cost: ₹16.42</span>
                       </div>
                     </div>
                   </div>
@@ -319,7 +319,7 @@ export function RoleTabsSection() {
                           Dynamic Surge Pricing Engine
                         </span>
                         <span className="font-mono text-xs font-bold text-emerald-400">
-                          ${tariffRate.toFixed(2)} / kWh
+                          ₹{tariffRate.toFixed(2)} / kWh
                         </span>
                       </div>
                       <input
@@ -332,9 +332,9 @@ export function RoleTabsSection() {
                         className="mt-3 w-full accent-emerald-400 cursor-pointer"
                       />
                       <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Off-Peak ($0.25)</span>
-                        <span>Estimated Daily Revenue: ${Math.round(tariffRate * 4200)}</span>
-                        <span>High-Surge ($0.65)</span>
+                        <span>Off-Peak (₹0.25)</span>
+                        <span>Estimated Daily Revenue: ₹{Math.round(tariffRate * 4200)}</span>
+                        <span>High-Surge (₹0.65)</span>
                       </div>
                     </div>
 
@@ -383,12 +383,12 @@ export function RoleTabsSection() {
                       </div>
                       <div className="rounded-xl border border-white/10 bg-[#0E1626] p-3">
                         <p className="text-[11px] text-slate-400">Avg Cost / Mile</p>
-                        <p className="mt-1 font-mono text-lg font-bold text-emerald-400">$0.07</p>
-                        <p className="text-[10px] text-slate-400">vs $0.28 Diesel</p>
+                        <p className="mt-1 font-mono text-lg font-bold text-emerald-400">₹0.07</p>
+                        <p className="text-[10px] text-slate-400">vs ₹0.28 Diesel</p>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-[#0E1626] p-3">
                         <p className="text-[11px] text-slate-400">Depot Savings</p>
-                        <p className="mt-1 font-mono text-lg font-bold text-cyan-400">$4,820</p>
+                        <p className="mt-1 font-mono text-lg font-bold text-cyan-400">₹4,820</p>
                         <p className="text-[10px] text-slate-400">This month</p>
                       </div>
                     </div>

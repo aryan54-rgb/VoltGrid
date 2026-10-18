@@ -32,7 +32,11 @@ import { useQuery } from '@/hooks/use-query'
 import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
 import { fetchStations } from '@/lib/api/stations'
 
-const TODAY = new Date().toISOString().split('T')[0]
+const todayParts = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+}).formatToParts(new Date())
+const todayPart = (type) => todayParts.find((part) => part.type === type).value
+const TODAY = `${todayPart('year')}-${todayPart('month')}-${todayPart('day')}`
 
 function dayLabel(date) {
   const monthDay = formatDate(date, { year: undefined })

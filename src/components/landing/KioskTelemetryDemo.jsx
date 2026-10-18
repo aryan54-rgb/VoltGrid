@@ -346,13 +346,13 @@ export function KioskTelemetryDemo() {
                   <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
                   Delivered Session
                 </span>
-                <span className="font-mono text-[10px] text-emerald-400">${cost.toFixed(2)}</span>
+                <span className="font-mono text-[10px] text-emerald-400">₹{cost.toFixed(2)}</span>
               </div>
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="font-mono text-3xl font-extrabold text-white sm:text-4xl">{kwh}</span>
                 <span className="font-mono text-xs font-bold text-emerald-400">kWh</span>
               </div>
-              <p className="mt-2 text-[11px] text-slate-400 font-mono">Tariff: $0.38 / kWh</p>
+              <p className="mt-2 text-[11px] text-slate-400 font-mono">Tariff: ₹0.38 / kWh</p>
             </div>
           </div>
 
@@ -406,7 +406,7 @@ export function KioskTelemetryDemo() {
                 <div>
                   <p className="text-sm font-bold">Charge Complete! 80% Optimal Target Reached</p>
                   <p className="text-xs text-slate-300">
-                    Solenoid unlocked. Cable ready to return to holster. Total cost: ${cost.toFixed(2)}.
+                    Solenoid unlocked. Cable ready to return to holster. Total cost: ₹{cost.toFixed(2)}.
                   </p>
                 </div>
               </div>

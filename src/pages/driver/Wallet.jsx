@@ -2,7 +2,6 @@ import * as React from 'react'
 import { Link } from 'react-router-dom'
 import {
   Plus,
-  CreditCard,
   CheckCircle2,
   Wallet as WalletIcon,
   ArrowDownLeft,
@@ -16,18 +15,8 @@ import {
 import { PageHeader } from '@/components/shared/page-header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -43,8 +32,9 @@ import { useQueries } from '@/hooks/use-query'
 import {
   fetchTransactions,
   fetchWallet,
-  topUp as topUpApi,
-  updateAutoTopUp,
+  createTopUpOrder,
+  verifyTopUpPayment,
+  loadRazorpayCheckout,
 } from '@/lib/api/wallet'
 
 const PRESETS = [25, 50, 100]
@@ -68,7 +58,7 @@ function Row({ label, value, strong }) {
   )
 }
 
-const EMPTY_WALLET = { balance: 0, currency: 'USD', autoTopUp: false, autoTopUpThreshold: 0, autoTopUpAmount: 0, cards: [] }
+const EMPTY_WALLET = { balance: 0, currency: 'INR', cards: [] }
 
 export default function Wallet() {
   const query = useQueries({
@@ -80,19 +70,11 @@ export default function Wallet() {
 
   const [addOpen, setAddOpen] = React.useState(false)
   const [amount, setAmount] = React.useState('50')
-  const [cardId, setCardId] = React.useState(null)
   const [addedAmount, setAddedAmount] = React.useState(null)
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState(null)
 
-  // Default the card picker to the primary card once the wallet has landed.
-  React.useEffect(() => {
-    if (cardId || !wallet.cards.length) return
-    setCardId(wallet.cards.find((c) => c.primary)?.id ?? wallet.cards[0].id)
-  }, [cardId, wallet.cards])
-
   const balance = wallet.balance
-  const autoTopUp = wallet.autoTopUp
 
   // Scoped to the month of the most recent movement rather than the wall clock,
   // so the tiles still describe real activity between busy months.
@@ -107,10 +89,8 @@ export default function Wallet() {
   }, [transactions])
 
   const recent = transactions.slice(0, 6)
-  const primaryCard = wallet.cards.find((c) => c.primary)
-  const selectedCard = wallet.cards.find((c) => c.id === cardId)
   const parsedAmount = Number(amount)
-  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0
+  const amountValid = Number.isFinite(parsedAmount) && parsedAmount >= 1 && parsedAmount <= 100000 && Math.abs(Math.round(parsedAmount * 100) - parsedAmount * 100) < 0.000001
 
   function toggleDialog(open) {
     setAddOpen(open)
@@ -125,24 +105,34 @@ export default function Wallet() {
     setBusy(true)
     setActionError(null)
     try {
-      await topUpApi(wallet.userId, parsedAmount, selectedCard ? `${selectedCard.brand} •••• ${selectedCard.last4}` : 'Wallet')
+      await loadRazorpayCheckout()
+      const order = await createTopUpOrder(parsedAmount)
+      setAddOpen(false)
+      const payment = await new Promise((resolve, reject) => {
+        const checkout = new window.Razorpay({
+          key: order.keyId,
+          order_id: order.orderId,
+          amount: order.amountPaise,
+          currency: order.currency,
+          name: 'VoltGrid',
+          description: 'Wallet top-up',
+          handler: resolve,
+          modal: { ondismiss: () => reject(new Error('Payment cancelled')) },
+        })
+        checkout.open()
+      })
+      await verifyTopUpPayment({
+        orderId: order.orderId,
+        paymentId: payment.razorpay_payment_id,
+        signature: payment.razorpay_signature,
+      })
+      await query.refetch()
       setAddedAmount(parsedAmount)
-      query.refetch()
+      setAddOpen(true)
     } catch (err) {
       setActionError(err)
     } finally {
       setBusy(false)
-    }
-  }
-
-  async function toggleAutoTopUp(enabled) {
-    if (!wallet.userId) return
-    setActionError(null)
-    try {
-      await updateAutoTopUp(wallet.userId, { enabled })
-      query.refetch()
-    } catch (err) {
-      setActionError(err)
     }
   }
 
@@ -164,7 +154,7 @@ export default function Wallet() {
     <div className="space-y-6">
       <PageHeader
         title="Wallet"
-        description="Your prepaid balance, payment methods and recent activity."
+        description="Your prepaid balance and recent activity. Add funds securely with Razorpay."
       />
 
       {actionError && (
@@ -183,16 +173,13 @@ export default function Wallet() {
                 {formatCurrency(balance)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {autoTopUp
-                  ? `Auto top-up on — ${formatCurrency(wallet.autoTopUpAmount)} is added whenever the balance falls below ${formatCurrency(wallet.autoTopUpThreshold)}.`
-                  : 'Auto top-up is off — add funds before your balance runs out.'}
+                Add funds before your balance runs out.
               </p>
             </div>
             <div className="flex gap-2">
               <Button onClick={() => toggleDialog(true)}>
                 <Plus /> Add funds
               </Button>
-              <Button variant="ghost">Withdraw</Button>
             </div>
           </CardContent>
         </Card>
@@ -200,7 +187,7 @@ export default function Wallet() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">This month</CardTitle>
-            <CardDescription>July 2026</CardDescription>
+            <CardDescription>{transactions[0]?.date ? new Date(transactions[0].date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : 'No activity yet'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Row label="Spent" value={formatCurrency(thisMonth.spent)} />
@@ -213,54 +200,23 @@ export default function Wallet() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Payment methods</CardTitle>
-            <CardDescription>Used to top up your wallet.</CardDescription>
+            <CardTitle className="text-base">Razorpay Checkout</CardTitle>
+            <CardDescription>Pay by a method available in your Razorpay test checkout.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {wallet.cards.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 rounded-lg border p-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <CreditCard className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">
-                    {c.brand} •••• {c.last4}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Expires {c.expiry}</p>
-                </div>
-                {c.primary && <Badge variant="secondary">Primary</Badge>}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => toggleDialog(true)}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-            >
-              <Plus className="h-4 w-4" /> Add card
-            </button>
+          <CardContent>
+            <Button variant="outline" onClick={() => toggleDialog(true)}><Plus /> Add funds</Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div className="space-y-1">
-              <CardTitle className="text-base">Auto top-up</CardTitle>
-              <CardDescription>Keeps your wallet funded between sessions.</CardDescription>
+              <CardTitle className="text-base">Payment confirmation</CardTitle>
+              <CardDescription>Your balance updates after Razorpay confirms a captured payment.</CardDescription>
             </div>
-            <Switch checked={autoTopUp} onCheckedChange={toggleAutoTopUp} aria-label="Auto top-up" />
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Row label="Threshold" value={formatCurrency(wallet.autoTopUpThreshold)} />
-            <Row label="Top-up amount" value={formatCurrency(wallet.autoTopUpAmount)} />
-            <Row
-              label="Charged to"
-              value={primaryCard ? `${primaryCard.brand} •••• ${primaryCard.last4}` : '—'}
-            />
-            <Separator />
-            <p className="text-xs text-muted-foreground">
-              When a session takes the balance below the threshold, a top-up runs automatically so
-              your next charge is never declined.
-            </p>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">If confirmation is delayed, refresh this page to see the updated balance and transaction.</p>
           </CardContent>
         </Card>
       </div>
@@ -333,31 +289,17 @@ export default function Wallet() {
                   ))}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="topup-amount">Custom amount (USD)</Label>
+                  <Label htmlFor="topup-amount">Custom amount (INR)</Label>
                   <Input
                     id="topup-amount"
                     type="number"
                     min="1"
-                    step="1"
+                    step="0.01"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Payment method</Label>
-                  <Select value={cardId} onValueChange={setCardId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a card" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {wallet.cards.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.brand} •••• {c.last4}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <p className="text-xs text-muted-foreground">Choose a payment method in Razorpay Checkout.</p>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => toggleDialog(false)}>
@@ -373,8 +315,7 @@ export default function Wallet() {
               <DialogHeader>
                 <DialogTitle>Top-up complete</DialogTitle>
                 <DialogDescription>
-                  {formatCurrency(addedAmount)} added from {selectedCard?.brand} ••••{' '}
-                  {selectedCard?.last4}.
+                  {formatCurrency(addedAmount)} added through Razorpay.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3 rounded-lg border border-[var(--status-good)]/40 bg-[var(--status-good)]/5 p-4">

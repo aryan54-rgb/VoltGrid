@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 .env
 .env.local
+supabase/functions/.env
+razorpay_*_api_keys_*.csv
 node_modules
 dist
 dist-ssr

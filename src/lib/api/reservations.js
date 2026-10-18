@@ -86,6 +86,26 @@ export async function fetchBookingSlots() {
   return supabase.from('booking_slots').select('*').order('sort_order').then(unwrap)
 }
 
+/** Live physical bays that can accept an immediate half-hour request. */
+export async function fetchBookNowAvailability(stationId, connectorType) {
+  const { data, error } = await supabase.rpc('book_now_availability', {
+    p_station_id: stationId,
+    p_connector_type: connectorType,
+  })
+  if (error) throw error
+  return data
+}
+
+/** The database chooses a free bay and creates the pending request atomically. */
+export async function requestBookNow(stationId, connectorType) {
+  const { data, error } = await supabase.rpc('request_book_now', {
+    p_station_id: stationId,
+    p_connector_type: connectorType,
+  })
+  if (error) throw error
+  return mapReservation(data)
+}
+
 /**
  * The booking grid for one station on one day: every slot, marked taken when a
  * live reservation covers it.

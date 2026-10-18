@@ -120,7 +120,7 @@ export default function Revenue() {
             <BarChart data={visibleDays} margin={{ left: 4, right: 8 }}>
               <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
               <XAxis dataKey="day" {...axisProps} />
-              <YAxis {...axisProps} width={44} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
+              <YAxis {...axisProps} width={44} tickFormatter={(v) => `₹${(v / 1000).toFixed(1)}k`} />
               <RTooltip
                 content={<ChartTooltip formatter={(v) => formatCurrency(v)} />}
                 cursor={{ stroke: 'var(--chart-axis)' }}
@@ -177,7 +177,7 @@ export default function Revenue() {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={revenueByStation} layout="vertical" margin={{ left: 8, right: 16 }}>
             <CartesianGrid stroke={GRID} strokeDasharray="0" horizontal={false} />
-            <XAxis type="number" {...axisProps} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+            <XAxis type="number" {...axisProps} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
             <YAxis type="category" dataKey="station" {...axisProps} width={110} />
             <RTooltip
               content={<ChartTooltip formatter={(v) => formatCurrency(v)} />}
