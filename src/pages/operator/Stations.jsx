@@ -5,6 +5,7 @@ import { ArrowRight, Building2, CheckCircle2, Crosshair, Loader2, MapPin, Plus, 
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
 import { StationMap } from '@/components/shared/station-map'
+import { StationLocationPicker } from '@/components/shared/station-location-picker'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -83,23 +84,38 @@ function CoordinateFields({
   isDetecting = false,
   geoError = null,
 }) {
+  const [mapOpen, setMapOpen] = useState(false)
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor={`${idPrefix}-lat`}>Coordinates</Label>
-        {onUseCurrentLocation && (
+        <div className="flex flex-wrap items-center gap-1">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-7 gap-1.5 px-2 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-            onClick={onUseCurrentLocation}
-            disabled={isDetecting}
+            className="h-7 gap-1.5 px-2"
+            onClick={() => setMapOpen((open) => !open)}
+            aria-expanded={mapOpen}
           >
-            {isDetecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
-            {isDetecting ? 'Detecting...' : 'Use current location'}
+            <MapPin className="h-3.5 w-3.5" />
+            {mapOpen ? 'Hide map' : 'Choose on map'}
           </Button>
-        )}
+          {onUseCurrentLocation && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              onClick={onUseCurrentLocation}
+              disabled={isDetecting}
+            >
+              {isDetecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
+              {isDetecting ? 'Detecting...' : 'Use current location'}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
@@ -133,11 +149,14 @@ function CoordinateFields({
         <p className="text-xs text-status-critical">{error}</p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Decimal degrees. Drivers measure their own distance from this pair, so it is worth
-          getting right -- leave both blank until the site has been surveyed.
+          Pick the station on the map or enter decimal degrees. Drivers use this point to
+          find the station and measure distance. Leave both fields blank if the location is not known yet.
         </p>
       )}
       {geoError && <p className="text-xs text-rose-500 dark:text-rose-400">{geoError}</p>}
+      {mapOpen && (
+        <StationLocationPicker latitude={latitude} longitude={longitude} onChange={onChange} />
+      )}
     </div>
   )
 }
