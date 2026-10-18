@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, Building2, CheckCircle2, Crosshair, Loader2, MapPin, Plus, Radio, Star, Zap } from 'lucide-react'
@@ -85,6 +85,15 @@ function CoordinateFields({
   geoError = null,
 }) {
   const [mapOpen, setMapOpen] = useState(false)
+  const mapRef = useRef(null)
+
+  useEffect(() => {
+    if (!mapOpen) return
+    const frame = window.requestAnimationFrame(() => {
+      mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [mapOpen])
 
   return (
     <div className="space-y-1.5">
@@ -145,6 +154,23 @@ function CoordinateFields({
           onChange={(e) => onChange({ longitude: e.target.value })}
         />
       </div>
+      {mapOpen && (
+        <div ref={mapRef} className="space-y-2 pt-1">
+          <StationLocationPicker latitude={latitude} longitude={longitude} onChange={onChange} />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground" role="status">
+              {coordinateError(latitude, longitude)
+                ? 'Select a point on the map to set both coordinates.'
+                : latitude && longitude
+                  ? `Selected: ${latitude}, ${longitude}`
+                  : 'Select a point on the map to set both coordinates.'}
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setMapOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
       {error ? (
         <p className="text-xs text-status-critical">{error}</p>
       ) : (
@@ -154,9 +180,6 @@ function CoordinateFields({
         </p>
       )}
       {geoError && <p className="text-xs text-rose-500 dark:text-rose-400">{geoError}</p>}
-      {mapOpen && (
-        <StationLocationPicker latitude={latitude} longitude={longitude} onChange={onChange} />
-      )}
     </div>
   )
 }
