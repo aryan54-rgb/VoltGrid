@@ -45,12 +45,11 @@ export async function fetchWallet() {
   ])
   if (!accounts.length) return null
 
-  // RLS can hand back both the caller's own wallet and the demo persona's. The
-  // caller's own row wins when it has been funded; otherwise show the populated
-  // demo one so the screen is not an empty shell on a fresh account.
+  // Checkout charges the signed-in driver's wallet, so this screen must show
+  // that same balance even when a demo wallet is also visible through RLS.
   const { data } = await supabase.auth.getUser()
   const mine = accounts.find((a) => a.user_id === data?.user?.id)
-  const chosen = mine && Number(mine.balance) > 0 ? mine : (accounts.find((a) => Number(a.balance) > 0) ?? mine ?? accounts[0])
+  const chosen = mine ?? accounts[0]
   return mapWallet(chosen, cards.filter((c) => c.user_id === chosen.user_id))
 }
 

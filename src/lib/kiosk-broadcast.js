@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { supabase } from '@/lib/supabase'
 import { updateConnectorStatus } from '@/lib/api/stations'
-import { purchase } from '@/lib/api/wallet'
 
 /**
  * Fault definitions mirroring physical EVSE hardware events.
@@ -58,8 +57,6 @@ const DEFAULT_STATE = {
   kioskState: 'IDLE', // IDLE | PLUGGED | CHARGING | COMPLETE | FAULTED
   plugDetected: false,
   authenticating: false,
-  depositHeld: 0,
-  depositAmount: 20.0,
   powerStreamActive: false,
   streamSpeed: 2, // multiplier
   chargingKwh: 0,
@@ -72,6 +69,9 @@ const DEFAULT_STATE = {
   faultState: null, // key of FAULT_DEFINITIONS
   faultDetails: null,
   sessionId: null,
+  reservationId: null,
+  paymentStatus: 'unpaid',
+  billingError: null,
   driverName: 'Alex Mercer',
   driverUserId: null,
   vehicle: 'Tesla Model 3 Long Range',
@@ -104,7 +104,13 @@ function loadInitialState() {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      return { ...DEFAULT_STATE, ...parsed, powerStreamActive: false }
+      const legacyUnbookedSession = parsed.kioskState !== 'IDLE' && !parsed.reservationId
+      return {
+        ...DEFAULT_STATE,
+        ...parsed,
+        ...(legacyUnbookedSession ? { kioskState: 'IDLE', plugDetected: false, sessionId: null } : {}),
+        powerStreamActive: false,
+      }
     }
   } catch {
     // fallback
@@ -281,6 +287,24 @@ export const KioskEngine = {
     broadcastUpdate(currentState, 'driver_update')
   },
 
+  setBooking(booking) {
+    if (currentState.kioskState !== 'IDLE') return false
+    currentState = {
+      ...currentState,
+      reservationId: booking.id,
+      stationId: booking.stationId,
+      stationName: booking.stationName || booking.station,
+      connectorId: booking.connectorId,
+      connectorLabel: booking.connectorLabel || booking.charger,
+      driverName: booking.customer,
+      driverUserId: booking.userId,
+      billingError: null,
+      updatedAt: Date.now(),
+    }
+    broadcastUpdate(currentState, 'booking_selected')
+    return true
+  },
+
   setStreamSpeed(speed) {
     currentState = {
       ...currentState,
@@ -296,9 +320,10 @@ export const KioskEngine = {
    * Transitions state to PLUGGED / AUTHENTICATING.
    */
   async plugCable() {
-    if (currentState.kioskState !== 'IDLE' && currentState.kioskState !== 'COMPLETE') {
+    if (currentState.kioskState !== 'IDLE') {
       return false
     }
+    if (!currentState.reservationId) throw new Error('Select an approved booking before plugging in.')
 
     const logs = addLog(
       'info',
@@ -357,8 +382,7 @@ export const KioskEngine = {
    * Action 2: [Unplug Cable]
    */
   async unplugCable() {
-    if (currentState.kioskState === 'CHARGING') {
-      // Must stop session first or call stopAndUnplug
+    if (['CHARGING', 'COMPLETE', 'FAULTED'].includes(currentState.kioskState) && currentState.sessionId) {
       await this.stopAndUnplug()
       return true
     }
@@ -369,7 +393,6 @@ export const KioskEngine = {
       kioskState: 'IDLE',
       plugDetected: false,
       authenticating: false,
-      depositHeld: 0,
       powerStreamActive: false,
       current: 0,
       logs,
@@ -390,21 +413,31 @@ export const KioskEngine = {
 
   /**
    * Action 3: [Start Session]
-   * Holds deposit & transitions state to CHARGING.
+   * Validates the approved booking and transitions to CHARGING.
    */
   async startSession(options = {}) {
     if (currentState.kioskState !== 'PLUGGED') {
       return false
     }
+    if (currentState.authenticating) throw new Error('Wait for the cable handshake to finish.')
+    if (!currentState.reservationId) throw new Error('Select an approved booking first.')
 
     const targetSoc = options.targetSoc || currentState.targetSoc || 80
     const startSoc = options.startSoc || currentState.startSoc || 22
-    const depositAmount = options.depositAmount || currentState.depositAmount || 20.0
     const sessionId = `cs-${Date.now().toString(36)}`
     const nowIso = new Date().toISOString()
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-    const logs1 = addLog('info', 'PAYMENT', `Pre-authorization hold of $${depositAmount.toFixed(2)} placed on driver account.`)
+    const { data: bookedSession, error: startError } = await supabase.rpc('operator_start_booked_session', {
+      p_reservation_id: currentState.reservationId,
+      p_session_id: sessionId,
+      p_vehicle: currentState.vehicle,
+      p_start_soc: startSoc,
+      p_target_soc: targetSoc,
+    })
+    if (startError) throw startError
+
+    const logs1 = addLog('info', 'PAYMENT', `Rate locked at $${Number(bookedSession.price_per_kwh).toFixed(2)}/kWh. Wallet payment is due after charging ends.`)
     const logs2 = [
       {
         id: `log-${Date.now()}-c`,
@@ -419,45 +452,21 @@ export const KioskEngine = {
     currentState = {
       ...currentState,
       kioskState: 'CHARGING',
-      depositHeld: depositAmount,
+      pricePerKwh: Number(bookedSession.price_per_kwh),
       targetSoc,
       startSoc,
       currentSoc: startSoc,
       chargingKwh: 0,
       costSoFar: 0,
       sessionId,
+      paymentStatus: 'unpaid',
+      billingError: null,
       sessionStartedAt: nowIso,
       sessionEndedAt: null,
       elapsedSeconds: 0,
       powerCurve: [{ t: nowTime, kw: currentState.powerKw }],
       logs: logs2,
       updatedAt: Date.now(),
-    }
-
-    // Try creating session record in Supabase
-    try {
-      const { data: authData } = await supabase.auth.getUser()
-      const effectiveUserId = currentState.driverUserId || authData?.user?.id
-      if (effectiveUserId && currentState.stationId && currentState.connectorId) {
-        await supabase.from('sessions').insert({
-          id: sessionId,
-          user_id: effectiveUserId,
-          station_id: currentState.stationId,
-          connector_id: currentState.connectorId,
-          vehicle: currentState.vehicle,
-          status: 'active',
-          started_at: nowIso,
-          start_soc: startSoc,
-          current_soc: startSoc,
-          target_soc: targetSoc,
-          power_kw: currentState.powerKw,
-          energy_kwh: 0,
-          cost: 0,
-          power_curve: [{ t: nowTime, kw: currentState.powerKw }],
-        })
-      }
-    } catch {
-      // Non-fatal if offline/demo
     }
 
     broadcastUpdate(currentState, 'session_started')
@@ -531,12 +540,12 @@ export const KioskEngine = {
     const currentKw = Math.round(prev.powerKw * (1 - progress * 0.55))
 
     // Base energy increment: (kW / 3600) per second * demo multiplier
-    const deltaKwh = ((currentKw * 1) / 3600) * speed * 2.5
+    const deltaKwh = (currentKw / 3600) * speed
     const nextKwh = Number((prev.chargingKwh + deltaKwh).toFixed(3))
     const nextCost = Number((nextKwh * prev.pricePerKwh).toFixed(2))
 
     // 75 kWh nominal pack: delta % = (deltaKwh / 75) * 100
-    const socGained = Math.max(0.1, (deltaKwh / 75) * 100)
+    const socGained = (deltaKwh / 75) * 100
     const nextSoc = Math.min(100, Math.round((prev.currentSoc + socGained) * 10) / 10)
 
     // Jittered voltage and current calculations
@@ -584,6 +593,10 @@ export const KioskEngine = {
         updatedAt: Date.now(),
       }
       broadcastUpdate(currentState, 'session_complete')
+      this.finishSession().catch((error) => {
+        currentState = { ...currentState, billingError: error.message }
+        broadcastUpdate(currentState, 'billing_error')
+      })
       return
     }
 
@@ -605,16 +618,11 @@ export const KioskEngine = {
     // Asynchronously update Supabase sessions row periodically
     if (nextElapsed % 5 === 0 && prev.sessionId) {
       try {
-        supabase
-          .from('sessions')
-          .update({
-            current_soc: Math.round(nextSoc),
-            energy_kwh: nextKwh,
-            cost: nextCost,
-            power_kw: currentKw,
-          })
-          .eq('id', prev.sessionId)
-          .then(() => {})
+        supabase.rpc('operator_meter_booked_session', {
+          p_session_id: prev.sessionId,
+          p_energy_kwh: nextKwh,
+          p_current_soc: Math.round(nextSoc),
+        }).then(() => {})
       } catch {
         // ignore
       }
@@ -691,10 +699,17 @@ export const KioskEngine = {
     return this.simulateHardwareFault('EMERGENCY_STOP')
   },
 
-  /**
-   * Action 6: [Stop & Unplug]
-   * Settles total bill, deducts from wallet, and resets station state to IDLE.
-   */
+  async finishSession() {
+    if (!currentState.sessionId) return
+    const { error } = await supabase.rpc('operator_finish_booked_session', {
+      p_session_id: currentState.sessionId,
+      p_energy_kwh: currentState.chargingKwh,
+      p_current_soc: Math.round(currentState.currentSoc),
+    })
+    if (error) throw error
+  },
+
+  /** Stop delivery, finalize the bill, and make the connector available. */
   async stopAndUnplug() {
     if (timerInterval) {
       clearInterval(timerInterval)
@@ -702,11 +717,20 @@ export const KioskEngine = {
     }
 
     const prev = currentState
-    const finalKwh = prev.chargingKwh
-    const finalCost = prev.costSoFar > 0 ? prev.costSoFar : Number((finalKwh * prev.pricePerKwh).toFixed(2))
+    const finalCost = prev.costSoFar
     const nowIso = new Date().toISOString()
 
-    const logs1 = addLog('info', 'PAYMENT', `Session ended. Releasing deposit hold ($${prev.depositHeld.toFixed(2)}). Final billing amount: $${finalCost.toFixed(2)}.`)
+    if (prev.sessionId && ['CHARGING', 'COMPLETE', 'FAULTED'].includes(prev.kioskState)) {
+      try {
+        await this.finishSession()
+      } catch (error) {
+        currentState = { ...currentState, powerStreamActive: false, billingError: error.message }
+        broadcastUpdate(currentState, 'billing_error')
+        throw error
+      }
+    }
+
+    const logs1 = addLog('info', 'PAYMENT', `Session ended. Final amount due: $${finalCost.toFixed(2)}. Driver can pay from the active session screen.`)
     const logs2 = [
       {
         id: `log-${Date.now()}-end`,
@@ -717,37 +741,6 @@ export const KioskEngine = {
       },
       ...logs1,
     ]
-
-    // Deduct from wallet if cost > 0
-    if (finalCost > 0) {
-      try {
-        const { data: authData } = await supabase.auth.getUser()
-        const effectiveUserId = prev.driverUserId || authData?.user?.id
-        if (effectiveUserId) {
-          await purchase(effectiveUserId, finalCost, `Charging session at ${prev.stationName} (${finalKwh.toFixed(1)} kWh)`)
-        }
-      } catch {
-        // Non-fatal if offline/demo
-      }
-    }
-
-    // Complete session in Supabase sessions table
-    if (prev.sessionId) {
-      try {
-        await supabase
-          .from('sessions')
-          .update({
-            status: 'completed',
-            ended_at: nowIso,
-            energy_kwh: finalKwh,
-            cost: finalCost,
-            current_soc: Math.round(prev.currentSoc),
-          })
-          .eq('id', prev.sessionId)
-      } catch {
-        // Non-fatal
-      }
-    }
 
     // Reset connector in DB to AVAILABLE
     try {
@@ -763,13 +756,13 @@ export const KioskEngine = {
       kioskState: 'IDLE',
       plugDetected: false,
       authenticating: false,
-      depositHeld: 0,
       powerStreamActive: false,
       faultState: null,
       faultDetails: null,
       current: 0,
       voltage: 400.0,
       sessionEndedAt: nowIso,
+      reservationId: null,
       logs: logs2,
       updatedAt: Date.now(),
     }
@@ -831,6 +824,7 @@ const kioskActions = {
   resetFault: () => KioskEngine.resetFault(),
   setStationAndConnector: (data) => KioskEngine.setStationAndConnector(data),
   setDriverInfo: (data) => KioskEngine.setDriverInfo(data),
+  setBooking: (booking) => KioskEngine.setBooking(booking),
   setStreamSpeed: (speed) => KioskEngine.setStreamSpeed(speed),
 }
 

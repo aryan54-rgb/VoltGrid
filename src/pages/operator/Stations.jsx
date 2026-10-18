@@ -279,14 +279,14 @@ export default function Stations() {
   }
 
   const addStation = async () => {
-    if (!form.name.trim() || addCoordError) return
+    if (!form.name.trim() || addCoordError || !form.pricePerKwh.trim() || !Number.isFinite(Number(form.pricePerKwh)) || Number(form.pricePerKwh) < 0) return
     setActionError(null)
     try {
       await createStation({
         name: form.name.trim(),
         address: form.address.trim(),
         city: form.city.trim() || 'Pune, Maharashtra',
-        pricePerKwh: parseFloat(form.pricePerKwh) || 0.4,
+        pricePerKwh: Number(form.pricePerKwh),
         operator: profile?.company || profile?.name || profile?.email || FALLBACK_OPERATOR,
         operatorId: profile?.id || null,
         connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
@@ -316,7 +316,7 @@ export default function Stations() {
   }
 
   const saveManage = async () => {
-    if (editCoordError) return
+    if (editCoordError || !editPrice.trim() || !Number.isFinite(Number(editPrice)) || Number(editPrice) < 0) return
     const price = parseFloat(editPrice)
     setActionError(null)
     try {
@@ -651,7 +651,7 @@ export default function Stations() {
                 <Button variant="outline" onClick={() => closeAdd(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addStation} disabled={!form.name.trim() || !!addCoordError}>
+                <Button onClick={addStation} disabled={!form.name.trim() || !!addCoordError || !form.pricePerKwh.trim() || !Number.isFinite(Number(form.pricePerKwh)) || Number(form.pricePerKwh) < 0}>
                   Add station
                 </Button>
               </DialogFooter>
@@ -716,7 +716,7 @@ export default function Stations() {
                 <Button variant="outline" onClick={() => setManaging(null)}>
                   Close
                 </Button>
-                <Button onClick={saveManage} disabled={!!editCoordError}>
+                <Button onClick={saveManage} disabled={!!editCoordError || !editPrice.trim() || !Number.isFinite(Number(editPrice)) || Number(editPrice) < 0}>
                   Save changes
                 </Button>
               </DialogFooter>

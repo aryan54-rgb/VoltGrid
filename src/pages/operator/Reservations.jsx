@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CalendarDays, CalendarX, Check, CheckCircle2, Clock, Percent, Play, Radio, X, Zap } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { CalendarDays, CalendarX, Check, CheckCircle2, Clock, Percent, Play, Radio, X } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -31,7 +31,6 @@ import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
 import { fetchStations } from '@/lib/api/stations'
-import { KioskEngine } from '@/lib/kiosk-broadcast'
 
 const TODAY = new Date().toISOString().split('T')[0]
 
@@ -60,6 +59,7 @@ function mockContact(name) {
 }
 
 export default function Reservations() {
+  const navigate = useNavigate()
   const book = useQuery(fetchReservations, [])
   const stationsQuery = useQuery(fetchStations, [])
   const stations = useMemo(() => stationsQuery.data ?? [], [stationsQuery.data])
@@ -83,7 +83,6 @@ export default function Reservations() {
   const [stationFilter, setStationFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [actionError, setActionError] = useState(null)
-  const [sessionStartedAlert, setSessionStartedAlert] = useState(null)
 
   const stationOptions = useMemo(() => [...new Set(list.map((r) => r.station))].sort(), [list])
 
@@ -108,37 +107,7 @@ export default function Reservations() {
   }
 
   const handleStartCharging = async (res) => {
-    setActionError(null)
-    try {
-      KioskEngine.setStationAndConnector({
-        stationId: res.stationId,
-        stationName: res.stationName || res.station,
-        connectorId: res.connectorId,
-        connectorLabel: res.connectorLabel || res.charger,
-      })
-      KioskEngine.setDriverInfo({
-        driverName: res.customer,
-        driverUserId: res.userId,
-        vehicle: 'Tesla Model 3 Long Range',
-      })
-
-      await KioskEngine.plugCable()
-      await new Promise((r) => setTimeout(r, 600))
-      await KioskEngine.startSession()
-      KioskEngine.startPowerStream()
-
-      await setReservationStatus(res.id, 'ACTIVE')
-      setSelected((prev) => (prev && prev.id === res.id ? { ...prev, status: 'ACTIVE' } : prev))
-      book.refetch()
-
-      setSessionStartedAlert({
-        id: res.id,
-        customer: res.customer,
-        station: res.stationName || res.station,
-      })
-    } catch (err) {
-      setActionError(err)
-    }
+    navigate(`/operator/kiosk-simulator?booking=${encodeURIComponent(res.id)}`)
   }
 
   if (book.loading && !book.data) return <LoadingRows rows={8} />
@@ -150,29 +119,6 @@ export default function Reservations() {
     <TooltipProvider delayDuration={200}>
       <div className="space-y-6">
         {actionError && <ErrorState error={actionError} title="That change did not go through" />}
-        {sessionStartedAlert && (
-          <Card className="border-emerald-500/40 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-200">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <Zap className="h-5 w-5 text-emerald-500 shrink-0" />
-                <div>
-                  <h4 className="text-sm font-semibold">Charging Session Started!</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Session for <strong>{sessionStartedAlert.customer}</strong> at <strong>{sessionStartedAlert.station}</strong> is now live on the Kiosk Terminal. The EV driver can monitor live telemetry and can stop charging at any time from their portal.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button asChild size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0">
-                  <Link to="/operator/kiosk-simulator">Open Kiosk Simulator</Link>
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSessionStartedAlert(null)}>
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
         <PageHeader
           title="Reservations"
           description="Stall-level bookings across the stations you operate."
@@ -299,17 +245,17 @@ export default function Reservations() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 px-2 gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
-                                  aria-label="Start charging session"
+                                  aria-label="Open booking in kiosk"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleStartCharging(r)
                                   }}
                                 >
                                   <Play className="h-3 w-3 fill-current" />
-                                  <span className="text-xs font-semibold">Start Charge</span>
+                                  <span className="text-xs font-semibold">Open Kiosk</span>
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Start hardware charging session on kiosk</TooltipContent>
+                              <TooltipContent>Plug in and start from the kiosk</TooltipContent>
                             </Tooltip>
                           )}
                           {r.status === 'ACTIVE' && (
@@ -414,7 +360,7 @@ export default function Reservations() {
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                       onClick={() => handleStartCharging(selected)}
                     >
-                      <Play className="fill-current" /> Start Charging Session
+                      <Play className="fill-current" /> Open Booking in Kiosk
                     </Button>
                   )}
                   {selected.status === 'ACTIVE' && (

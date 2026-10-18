@@ -20,6 +20,8 @@ function connectorLabel(row) {
 export function mapSession(row) {
   return {
     id: row.id,
+    userId: row.user_id,
+    reservationId: row.reservation_id,
     stationId: row.station_id,
     station: row.stations?.name ?? '—',
     stationName: row.stations?.name ?? '—',
@@ -40,8 +42,9 @@ export function mapSession(row) {
     currentSoc: row.current_soc,
     targetSoc: row.target_soc,
     powerKw: row.power_kw == null ? null : Number(row.power_kw),
-    pricePerKwh: Number(row.stations?.price_per_kwh ?? 0),
+    pricePerKwh: Number(row.price_per_kwh ?? row.stations?.price_per_kwh ?? 0),
     powerCurve: row.power_curve ?? [],
+    paymentStatus: row.payment_status ?? 'unpaid',
   }
 }
 
@@ -50,15 +53,24 @@ export function mapSession(row) {
  * live screen shows but the row does not store.
  */
 export async function fetchActiveSession() {
+  const { data: auth } = await supabase.auth.getUser()
+  if (!auth?.user?.id) return null
   const row = await supabase
     .from('sessions')
     .select(SELECT)
     .eq('status', 'active')
+    .eq('user_id', auth.user.id)
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle()
     .then(unwrap)
-  if (!row) return null
+  if (!row) {
+    const recent = await supabase.from('sessions').select(SELECT)
+      .eq('user_id', auth.user.id).eq('status', 'completed')
+      .gte('ended_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('ended_at', { ascending: false }).limit(1).maybeSingle().then(unwrap)
+    return recent ? mapSession(recent) : null
+  }
 
   const session = mapSession(row)
   const socGap = Math.max(0, (session.targetSoc ?? 0) - (session.currentSoc ?? 0))
@@ -69,6 +81,12 @@ export async function fetchActiveSession() {
     estMinutesRemaining:
       session.powerKw > 0 ? Math.round((socGap / 100) * 75 * (60 / session.powerKw)) : 0,
   }
+}
+
+export async function payChargingSession(sessionId) {
+  const { data, error } = await supabase.rpc('pay_charging_session', { p_session_id: sessionId })
+  if (error) throw error
+  return data
 }
 
 /** Completed, cancelled and failed sessions, newest first. */

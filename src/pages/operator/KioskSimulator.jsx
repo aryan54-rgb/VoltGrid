@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Activity,
@@ -33,7 +33,7 @@ import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import { useQuery } from '@/hooks/use-query'
 import { fetchStations, fetchConnectorsFor } from '@/lib/api/stations'
-import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
+import { fetchReservations } from '@/lib/api/reservations'
 import { useAuth } from '@/context/auth'
 import { useKioskSimulator, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
 
@@ -63,7 +63,7 @@ export default function KioskSimulator() {
     stopAndUnplug,
     resetFault,
     setStationAndConnector,
-    setDriverInfo,
+    setBooking,
     setStreamSpeed,
   } = useKioskSimulator()
 
@@ -88,7 +88,7 @@ export default function KioskSimulator() {
       .then((data) => {
         if (!active) return
         setConnectors(data || [])
-        if (data && data.length > 0 && !data.some((c) => c.id === state.connectorId)) {
+        if (data && data.length > 0 && !state.reservationId && !data.some((c) => c.id === state.connectorId)) {
           setStationAndConnector({
             connectorId: data[0].id,
             connectorLabel: `Bay ${data[0].label} (${data[0].type})`,
@@ -106,10 +106,18 @@ export default function KioskSimulator() {
     return () => {
       active = false
     }
-  }, [stations, state.stationId, state.connectorId, setStationAndConnector])
+  }, [stations, state.stationId, state.connectorId, state.reservationId, setStationAndConnector])
 
   // Query reservations for quick-start and approval
   const reservationsQuery = useQuery(fetchReservations, [])
+  const refetchReservations = reservationsQuery.refetch
+  const [searchParams] = useSearchParams()
+  const [actionError, setActionError] = useState(null)
+  const [working, setWorking] = useState(false)
+  useEffect(() => {
+    const interval = window.setInterval(refetchReservations, 10000)
+    return () => window.clearInterval(interval)
+  }, [refetchReservations])
   const allReservations = useMemo(() => reservationsQuery.data ?? [], [reservationsQuery.data])
 
   const pendingBookings = useMemo(() => {
@@ -120,6 +128,19 @@ export default function KioskSimulator() {
     return allReservations.filter((r) => r.stationId === state.stationId && r.status === 'RESERVED')
   }, [allReservations, state.stationId])
 
+  useEffect(() => {
+    const bookingId = searchParams.get('booking')
+    const booking = allReservations.find((r) => r.id === bookingId && r.status === 'RESERVED' && stations.some((s) => s.id === r.stationId))
+    if (booking && state.kioskState === 'IDLE' && state.reservationId !== booking.id) setBooking(booking)
+  }, [searchParams, allReservations, stations, state.kioskState, state.reservationId, setBooking])
+
+  const runAction = async (action) => {
+    setActionError(null)
+    setWorking(true)
+    try { await action() } catch (error) { setActionError(error.message || 'Kiosk action failed') }
+    finally { setWorking(false) }
+  }
+
   const [selectedFault, setSelectedFault] = useState('OVER_CURRENT')
   const [logFilter, setLogFilter] = useState('all')
 
@@ -127,7 +148,7 @@ export default function KioskSimulator() {
   useEffect(() => {
     if (stations.length > 0) {
       const current = stations.find((s) => s.id === state.stationId) || stations[0]
-      if (current && (state.stationId !== current.id || state.stationName !== current.name || state.pricePerKwh !== current.pricePerKwh)) {
+      if (current && state.kioskState === 'IDLE' && (state.stationId !== current.id || state.stationName !== current.name || state.pricePerKwh !== current.pricePerKwh)) {
         setStationAndConnector({
           stationId: current.id,
           stationName: current.name,
@@ -135,7 +156,7 @@ export default function KioskSimulator() {
         })
       }
     }
-  }, [stations, state.stationId, state.stationName, state.pricePerKwh, setStationAndConnector])
+  }, [stations, state.stationId, state.stationName, state.pricePerKwh, state.kioskState, setStationAndConnector])
 
   const handleStationChange = (stId) => {
     const st = stations.find((s) => s.id === stId)
@@ -187,6 +208,7 @@ export default function KioskSimulator() {
 
   return (
     <div className="space-y-6">
+      {(actionError || state.billingError) && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{actionError || state.billingError}</p>}
       {/* Top Banner & Title */}
       <PageHeader
         title="Kiosk Terminal Simulator"
@@ -262,7 +284,7 @@ export default function KioskSimulator() {
       {/* Driver Booking Ready to Charge Banner: Approved */}
       {approvedBookings.length > 0 && (
         <Card className="border-emerald-500/40 bg-emerald-500/10 p-3.5 text-emerald-900 dark:text-emerald-200">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
               <div>
@@ -270,33 +292,20 @@ export default function KioskSimulator() {
                   <span className="text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                     Approved Booking Ready
                   </span>
-                  <span className="text-xs font-semibold">{approvedBookings[0].customer}</span>
+                  <span className="text-xs font-semibold">Select the driver who has arrived</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Slot: {approvedBookings[0].date} ({approvedBookings[0].time}) · {approvedBookings[0].charger}
+                  Select a booking, plug the cable, then start charging. The driver pays after charging ends.
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs shrink-0"
-              disabled={isCharging}
-              onClick={() => {
-                const b = approvedBookings[0]
-                setDriverInfo({ driverName: b.customer, driverUserId: b.userId, vehicle: 'Tesla Model 3' })
-                if (b.connectorId) {
-                  setStationAndConnector({ connectorId: b.connectorId, connectorLabel: b.connectorLabel || b.charger })
-                }
-                plugCable()
-                setTimeout(() => startSession(), 600)
-                setReservationStatus(b.id, 'ACTIVE').catch(() => {})
-              }}
-            >
-              <Play className="h-4 w-4 fill-current" /> Plug & Start Session for Driver
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {approvedBookings.map((b) => <Button key={b.id} type="button" size="sm" variant={state.reservationId === b.id ? 'default' : 'outline'} disabled={!isIdle} onClick={() => setBooking(b)}>{b.customer} · {b.date} {b.time} · {b.charger}</Button>)}
+            </div>
           </div>
         </Card>
       )}
+      {state.reservationId && <p className="text-sm text-emerald-600 dark:text-emerald-400">Selected booking {state.reservationId} for {state.driverName}. Rate: {formatCurrency(state.pricePerKwh)}/kWh. Amount due = delivered kWh × this rate.</p>}
 
       {/* Hardware Target Configuration Bar */}
       <Card className="bg-muted/40 border-dashed">
@@ -304,7 +313,7 @@ export default function KioskSimulator() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:max-w-2xl">
             <div>
               <span className="text-xs text-muted-foreground block mb-1 font-medium">Station Target</span>
-              <Select value={state.stationId || 'st-01'} onValueChange={handleStationChange}>
+              <Select value={state.stationId || 'st-01'} onValueChange={handleStationChange} disabled={!isIdle || !!state.reservationId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select station" />
                 </SelectTrigger>
@@ -334,6 +343,7 @@ export default function KioskSimulator() {
               <span className="text-xs text-muted-foreground block mb-1 font-medium">Connector Bay</span>
               <Select
                 value={state.connectorId || 'st-01-c11'}
+                disabled={!isIdle || !!state.reservationId}
                 onValueChange={(cid) => {
                   const found = connectors.find((c) => c.id === cid)
                   setStationAndConnector({
@@ -390,11 +400,12 @@ export default function KioskSimulator() {
             <div className="flex flex-col text-right">
               <span className="text-muted-foreground">Rate:</span>
               <span className="font-semibold tabular-nums text-foreground">{formatCurrency(state.pricePerKwh)} / kWh</span>
+              <Link to="/operator/stations" className="text-primary hover:underline">Edit station rate</Link>
             </div>
             <Separator orientation="vertical" className="h-8 hidden sm:block" />
             <div className="flex flex-col text-right">
-              <span className="text-muted-foreground">Pre-auth Deposit:</span>
-              <span className="font-semibold tabular-nums text-foreground">{formatCurrency(state.depositAmount)}</span>
+              <span className="text-muted-foreground">Billing:</span>
+              <span className="font-semibold tabular-nums text-foreground">Pay after charging</span>
             </div>
           </div>
         </CardContent>
@@ -531,7 +542,7 @@ export default function KioskSimulator() {
                     </span>
                   </div>
                   <span className="text-[10px] text-zinc-500 mt-1">
-                    {state.depositHeld > 0 ? `($${state.depositHeld} hold)` : 'Pre-auth'}
+                    {isCharging ? `${formatCurrency(state.pricePerKwh)}/kWh` : 'Pay after charging'}
                   </span>
                 </div>
 
@@ -659,20 +670,20 @@ export default function KioskSimulator() {
                 <div className="pt-1 flex gap-2">
                   {!state.plugDetected ? (
                     <Button
-                      onClick={plugCable}
+                      onClick={() => runAction(plugCable)}
                       className="w-full gap-1.5"
                       size="sm"
-                      disabled={isCharging || isFaulted}
+                      disabled={isCharging || isFaulted || !state.reservationId || working}
                     >
                       <Plug className="h-4 w-4" /> [Plug Cable] → PLUGGED
                     </Button>
                   ) : (
                     <Button
-                      onClick={unplugCable}
+                      onClick={() => runAction(unplugCable)}
                       variant="outline"
                       className="w-full gap-1.5 text-destructive hover:bg-destructive/10"
                       size="sm"
-                      disabled={isCharging}
+                      disabled={isCharging || working}
                     >
                       <Plug className="h-4 w-4 rotate-180" /> [Unplug Cable] → IDLE
                     </Button>
@@ -688,15 +699,15 @@ export default function KioskSimulator() {
                     <span className="text-xs font-semibold">Session Authorization</span>
                   </div>
                   <span className="text-[11px] font-mono text-muted-foreground">
-                    Pre-auth Hold: {formatCurrency(state.depositAmount)}
+                    {formatCurrency(state.pricePerKwh)} / kWh
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Holds deposit, energizes high-voltage contactors, transitions to CHARGING.
+                  Confirms the approved booking, starts the meter, and energizes the charger. Payment is due after stopping.
                 </p>
                 <Button
-                  onClick={() => startSession()}
-                  disabled={!isPlugged || isCharging}
+                  onClick={() => runAction(async () => { await startSession(); reservationsQuery.refetch() })}
+                  disabled={!isPlugged || isCharging || state.authenticating || working}
                   className="w-full gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                   size="sm"
                 >
@@ -789,13 +800,13 @@ export default function KioskSimulator() {
               {/* Action 5: [Stop & Unplug] & E-Stop */}
               <div className="pt-2 space-y-2 border-t">
                 <Button
-                  onClick={stopAndUnplug}
-                  disabled={isIdle}
+                  onClick={() => runAction(async () => { await stopAndUnplug(); reservationsQuery.refetch() })}
+                  disabled={isIdle || working}
                   className="w-full gap-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 font-semibold"
                   size="default"
                 >
                   <Square className="h-4 w-4 fill-current" />
-                  [Stop & Unplug] → Settle & Reset to IDLE
+                  [Stop & Unplug] → Finalize Bill
                 </Button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -915,7 +926,7 @@ export default function KioskSimulator() {
                   2
                 </span>
                 <p>
-                  Click <strong>[Plug Cable]</strong>, then <strong>[Start Session]</strong>. Pre-auth deposit is held and state enters CHARGING.
+                  Select an approved booking, click <strong>[Plug Cable]</strong>, then <strong>[Start Session]</strong>.
                 </p>
               </div>
               <div className="flex gap-2.5">
@@ -939,7 +950,7 @@ export default function KioskSimulator() {
                   5
                 </span>
                 <p>
-                  Click <strong>[Stop & Unplug]</strong> to settle the session bill, record the wallet ledger deduction, and return to IDLE.
+                  Click <strong>[Stop & Unplug]</strong> to finalize the bill. The driver then chooses Pay with wallet.
                 </p>
               </div>
             </CardContent>

@@ -15,7 +15,6 @@ import {
   BatteryCharging,
   DollarSign,
   Timer,
-  Square,
   FileText,
   Plug,
   Zap,
@@ -29,21 +28,14 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
-import { fetchActiveSession } from '@/lib/api/sessions'
-import { useKioskTelemetry, KioskEngine, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
+import { fetchActiveSession, payChargingSession } from '@/lib/api/sessions'
+import { useKioskTelemetry, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
+import { useAuth } from '@/context/auth'
 
 const TICK_MS = 2000
 const SOC_STEP = 1
@@ -132,9 +124,8 @@ function LiveSession({ session }) {
   const activeSession = session
   const telemetry = useKioskTelemetry()
   const isTwinActive = Boolean(
-    session.isTwinTelemetry ||
-    telemetry.kioskState !== 'IDLE' ||
-    telemetry.sessionId === session.id
+    telemetry.sessionId === session.id && telemetry.driverUserId === session.userId &&
+    ['CHARGING', 'PLUGGED', 'FAULTED', 'COMPLETE'].includes(telemetry.kioskState)
   )
 
   const kwhPerSoc = React.useMemo(() => batteryKwhFor(session) / 100, [session])
@@ -175,8 +166,25 @@ function LiveSession({ session }) {
     (session.powerCurve ?? []).map((p) => ({ t: p.t, kw: p.kw }))
   )
   const [status, setStatus] = React.useState(() => session.status || 'charging')
-  const [stopOpen, setStopOpen] = React.useState(false)
+  const [paymentStatus, setPaymentStatus] = React.useState(session.paymentStatus || 'unpaid')
+  const [paymentError, setPaymentError] = React.useState(null)
+  const [paying, setPaying] = React.useState(false)
   const liveRef = React.useRef(initialLive)
+
+  React.useEffect(() => {
+    if ((!session.reservationId && session.status !== 'completed') || isTwinActive) return
+    const final = {
+      soc: session.currentSoc ?? 0,
+      energyKwh: session.energyKwh ?? 0,
+      costSoFar: session.costSoFar ?? 0,
+      powerKw: 0,
+      elapsedMin: 0,
+    }
+    liveRef.current = final
+    setLive(final)
+    setStatus(session.status === 'active' ? 'charging' : 'completed')
+    setPaymentStatus(session.paymentStatus || 'unpaid')
+  }, [session, isTwinActive])
 
   // Real-time synchronization with Kiosk Hardware Digital Twin
   React.useEffect(() => {
@@ -210,6 +218,7 @@ function LiveSession({ session }) {
   // Fallback internal simulation tick only if NOT connected to active hardware twin
   React.useEffect(() => {
     if (isTwinActive) return undefined
+    if (session.reservationId) return undefined
     if (status !== 'charging') return undefined
     const interval = setInterval(() => {
       const prev = liveRef.current
@@ -231,19 +240,22 @@ function LiveSession({ session }) {
       setCurve((c) => [...c, { t: clockLabel(next.elapsedMin), kw: next.powerKw }])
     }, TICK_MS)
     return () => clearInterval(interval)
-  }, [status, activeSession, kwhPerSoc, powerAtSoc, clockLabel, isTwinActive])
+  }, [status, activeSession, kwhPerSoc, powerAtSoc, clockLabel, isTwinActive, session.reservationId])
 
   const charging = status === 'charging'
   const isFaulted = status === 'faulted' || telemetry.kioskState === 'FAULTED'
   const remainingKwh = Math.max(0, (activeSession.targetSoc - live.soc) * kwhPerSoc)
   const minutesRemaining = charging && live.powerKw > 0 ? (remainingKwh / live.powerKw) * 60 : 0
 
-  const stopSession = () => {
-    setStopOpen(false)
-    setStatus('completed')
-    if (isTwinActive) {
-      KioskEngine.stopAndUnplug()
-    }
+  const pay = async () => {
+    setPaying(true)
+    setPaymentError(null)
+    try {
+      await payChargingSession(session.id)
+      setPaymentStatus('paid')
+    } catch (error) {
+      setPaymentError(error.message || 'Payment could not be completed')
+    } finally { setPaying(false) }
   }
 
   return (
@@ -322,11 +334,13 @@ function LiveSession({ session }) {
                 />
                 <Separator />
                 <div className="flex items-center justify-between text-base font-semibold">
-                  <span>Total charged to wallet</span>
+                  <span>Amount due</span>
                   <span className="tabular-nums">{formatCurrency(live.costSoFar)}</span>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
+                {paymentStatus === 'unpaid' ? <Button size="sm" disabled={paying || session.status !== 'completed'} onClick={pay}>{session.status !== 'completed' ? 'Finalizing bill…' : paying ? 'Processing…' : `Pay ${formatCurrency(live.costSoFar)} with wallet`}</Button> : <p className="text-sm font-medium text-emerald-600">Paid with wallet · Receipt in transaction history</p>}
+                {paymentError && <p role="alert" className="w-full text-sm text-destructive">{paymentError} <Link className="underline" to="/driver/wallet">Open wallet</Link></p>}
                 <Button asChild variant="outline" size="sm">
                   <Link to="/driver/history">View session history</Link>
                 </Button>
@@ -441,47 +455,30 @@ function LiveSession({ session }) {
               <p className="text-xs text-muted-foreground">
                 {charging
                   ? `Stops automatically at ${activeSession.targetSoc}% — unplug within 10 minutes to avoid idle fees.`
-                  : 'Your wallet has been debited and the receipt is in your history.'}
+                  : paymentStatus === 'paid' ? 'Payment complete. Your receipt is in your wallet history.' : 'Charging has ended. Pay the final amount with your wallet above.'}
               </p>
             </div>
           </div>
-          <Button variant="destructive" disabled={!charging} onClick={() => setStopOpen(true)}>
-            <Square /> Stop charging
-          </Button>
+          {charging && <p className="text-xs text-muted-foreground">Ask the station operator to stop and unplug the charger.</p>}
         </CardContent>
       </Card>
 
-      <Dialog open={stopOpen} onOpenChange={setStopOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Stop charging?</DialogTitle>
-            <DialogDescription>
-              The battery is at {live.soc}% of a {activeSession.targetSoc}% target. Stopping now ends
-              the session and charges {formatCurrency(live.costSoFar)} to your wallet.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStopOpen(false)}>
-              Keep charging
-            </Button>
-            <Button variant="destructive" onClick={stopSession}>
-              Stop session
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
 
 export default function ActiveSession() {
   const { data, loading, error, refetch } = useQuery(fetchActiveSession, [])
+  const { profile } = useAuth()
   const telemetry = useKioskTelemetry()
+  React.useEffect(() => {
+    const interval = window.setInterval(refetch, 5000)
+    return () => window.clearInterval(interval)
+  }, [refetch])
 
   const hasTwinActive = Boolean(
-    telemetry &&
-      (['CHARGING', 'PLUGGED', 'FAULTED', 'COMPLETE'].includes(telemetry.kioskState) ||
-        (telemetry.sessionId && telemetry.chargingKwh > 0))
+    telemetry && telemetry.driverUserId === profile?.id &&
+      ['CHARGING', 'PLUGGED', 'FAULTED', 'COMPLETE'].includes(telemetry.kioskState)
   )
 
   const effectiveSession = React.useMemo(() => {
@@ -489,6 +486,7 @@ export default function ActiveSession() {
     if (hasTwinActive) {
       return {
         id: telemetry.sessionId || 'cs-twin-live',
+        userId: telemetry.driverUserId,
         stationId: telemetry.stationId,
         station: telemetry.stationName,
         stationName: telemetry.stationName,
