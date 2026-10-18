@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Activity, AlertTriangle, ChevronRight, DollarSign, PlugZap, Wrench, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, ChevronRight, DollarSign, Zap } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -26,37 +25,6 @@ import { useQueries } from '@/hooks/use-query'
 import { fetchConnectors, fetchStations } from '@/lib/api/stations'
 import { fetchRevenueByDay, fetchSessionsByHour } from '@/lib/api/analytics'
 
-const ALERTS = [
-  {
-    id: 'al-1',
-    icon: AlertTriangle,
-    tone: 'text-status-critical',
-    text: 'Mission Bay Fast Lane — bay A3 reporting a ground fault',
-    time: '12m ago',
-  },
-  {
-    id: 'al-2',
-    icon: PlugZap,
-    tone: 'text-status-warning',
-    text: 'Greenline Depot — all fast bays occupied for over an hour',
-    time: '46m ago',
-  },
-  {
-    id: 'al-3',
-    icon: Wrench,
-    tone: 'text-status-warning',
-    text: 'Dogpatch Power Yard — site offline since the scheduled grid works',
-    time: '2h ago',
-  },
-  {
-    id: 'al-4',
-    icon: Activity,
-    tone: 'text-muted-foreground',
-    text: 'Harborview Charging Hub — payment terminal reconnected',
-    time: '5h ago',
-  },
-]
-
 export default function Dashboard() {
   const query = useQueries({
     stations: fetchStations,
@@ -76,7 +44,12 @@ export default function Dashboard() {
     ? connectors.reduce((sum, c) => sum + c.uptimePct, 0) / connectors.length
     : 0
 
-  const latestDay = revenueByDay[revenueByDay.length - 1]
+  const today = new Date().toISOString().slice(0, 10)
+  const latestDay = revenueByDay.find((day) => day.day === today)
+  const cutoff = new Date()
+  cutoff.setUTCDate(cutoff.getUTCDate() - 13)
+  const recentRevenue = revenueByDay.filter((day) => day.day >= cutoff.toISOString().slice(0, 10))
+  const alerts = connectors.filter((connector) => connector.status === 'FAULTED')
 
   if (query.loading && !query.data) {
     return (
@@ -100,34 +73,25 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Revenue today"
-          value={latestDay ? formatCurrency(latestDay.revenue) : '—'}
-          delta={6.2}
-          deltaLabel="vs yesterday"
+          value={formatCurrency(latestDay?.revenue ?? 0)}
           icon={DollarSign}
           index={0}
         />
         <StatCard
           label="Sessions today"
-          value={latestDay ? formatNumber(latestDay.sessions) : '—'}
-          delta={3.4}
-          deltaLabel="vs yesterday"
+          value={formatNumber(latestDay?.sessions ?? 0)}
           icon={Zap}
           index={1}
         />
         <StatCard
-          label="Network uptime"
+          label="Charger uptime"
           value={`${uptime.toFixed(1)}%`}
-          delta={0.4}
-          deltaLabel="vs last week"
           icon={Activity}
           index={2}
         />
         <StatCard
           label="Faulted chargers"
           value={faultedChargers}
-          delta={12}
-          deltaLabel="vs last week"
-          deltaGoodWhen="down"
           icon={AlertTriangle}
           index={3}
         />
@@ -141,7 +105,7 @@ export default function Dashboard() {
           className="lg:col-span-2"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={revenueByDay} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={recentRevenue} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="opRevenueFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
@@ -248,30 +212,16 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Alerts</CardTitle>
-            <CardDescription>Live signals from the network in the last few hours</CardDescription>
+            <CardDescription>Faulted bays at your stations</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            {ALERTS.map((a, i) => {
-              const Icon = a.icon
-              return (
-                <motion.div
-                  key={a.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: i * 0.05 }}
-                  className="flex items-start gap-3 rounded-xl border p-3"
-                >
-                  <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${a.tone}`} />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-sm leading-snug">{a.text}</p>
-                    <p className="text-xs text-muted-foreground">{a.time}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="shrink-0">
-                    Dispatch tech
-                  </Button>
-                </motion.div>
-              )
-            })}
+            {alerts.length === 0 && <p className="text-sm text-muted-foreground">No faulted bays.</p>}
+            {alerts.map((connector) => (
+              <div key={connector.id} className="flex items-start gap-3 rounded-xl border p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-critical" />
+                <p className="text-sm">{connector.stationName} — bay {connector.label} is faulted</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>

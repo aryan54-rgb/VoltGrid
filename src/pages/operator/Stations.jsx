@@ -145,12 +145,14 @@ function CoordinateFields({
 export default function Stations() {
   const { profile } = useAuth()
   const query_ = useQuery(fetchStations, [])
-  const stations = useMemo(() => query_.data ?? [], [query_.data])
+  const stations = useMemo(
+    () => (query_.data ?? []).filter((station) => station.operatorId === profile?.id),
+    [query_.data, profile?.id]
+  )
 
   const [selectedId, setSelectedId] = useState(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [operatorFilter, setOperatorFilter] = useState('all')
 
   // Add-station dialog
   const [addOpen, setAddOpen] = useState(false)
@@ -166,12 +168,6 @@ export default function Stations() {
   const [editCoords, setEditCoords] = useState({ latitude: '', longitude: '' })
   const [savedId, setSavedId] = useState(null)
   const [actionError, setActionError] = useState(null)
-
-  // The operator filter offers whoever actually runs a site on the network.
-  const OPERATORS = useMemo(
-    () => [...new Set(stations.map((s) => s.operator))].filter(Boolean),
-    [stations]
-  )
 
   // Pins are projected from the stations' own coordinates, so an unsurveyed
   // site simply has none rather than being parked somewhere invented.
@@ -196,10 +192,9 @@ export default function Stations() {
         s.address.toLowerCase().includes(q) ||
         s.city.toLowerCase().includes(q)
       const matchesStatus = statusFilter === 'all' || s.status === statusFilter
-      const matchesOperator = operatorFilter === 'all' || s.operator === operatorFilter
-      return matchesQuery && matchesStatus && matchesOperator
+      return matchesQuery && matchesStatus
     })
-  }, [stations, query, statusFilter, operatorFilter])
+  }, [stations, query, statusFilter])
 
   const closeAdd = (open) => {
     setAddOpen(open)
@@ -250,7 +245,7 @@ export default function Stations() {
         address: form.address.trim(),
         city: form.city.trim() || 'Pune, Maharashtra',
         pricePerKwh: parseFloat(form.pricePerKwh) || 0.4,
-        operator: profile?.company || profile?.name || profile?.email || OPERATORS[0] || FALLBACK_OPERATOR,
+        operator: profile?.company || profile?.name || profile?.email || FALLBACK_OPERATOR,
         operatorId: profile?.id || null,
         connectorCount: Math.max(1, parseInt(form.connectors, 10) || 1),
         type: form.connectorType || 'CCS2',
@@ -354,20 +349,6 @@ export default function Stations() {
             {STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={operatorFilter} onValueChange={setOperatorFilter}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Operator" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All operators</SelectItem>
-            {OPERATORS.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
               </SelectItem>
             ))}
           </SelectContent>

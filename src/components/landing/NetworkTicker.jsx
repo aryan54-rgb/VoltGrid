@@ -9,17 +9,63 @@ import {
   Radio,
   Sparkles,
 } from 'lucide-react'
+import CountUp from '@/components/CountUp'
 
 const TICKER_ITEMS = [
-  { icon: ShieldCheck, label: 'Network Uptime', value: '99.9% SLA', color: 'text-emerald-400' },
-  { icon: Globe, label: 'Metropolitan Coverage', value: '40+ Cities', color: 'text-cyan-400' },
-  { icon: BatteryCharging, label: 'Energy Delivered', value: '12.4 MWh Today', color: 'text-emerald-300' },
-  { icon: Cpu, label: 'Standard Protocol', value: 'OCPP 2.0.1 Native', color: 'text-cyan-300' },
-  { icon: Zap, label: 'Active Fast Bays', value: '12,400+ Connectors', color: 'text-emerald-400' },
-  { icon: Activity, label: 'Telemetry Response', value: '< 150ms Latency', color: 'text-cyan-400' },
-  { icon: Sparkles, label: 'Smart Protocol', value: 'ISO 15118 Plug & Charge', color: 'text-emerald-300' },
-  { icon: Clock, label: 'Daily Charge Sessions', value: '18,200+ Runs', color: 'text-cyan-300' },
-  { icon: Radio, label: 'Cloud Diagnostics', value: '24/7 Auto-Recovery', color: 'text-emerald-400' },
+  {
+    icon: ShieldCheck,
+    label: 'Network Uptime',
+    renderValue: () => <CountUp to={99.9} decimals={1} suffix="% SLA" duration={2} />,
+    color: 'text-emerald-400',
+  },
+  {
+    icon: Globe,
+    label: 'Metropolitan Coverage',
+    renderValue: () => <CountUp to={40} suffix="+ Cities" duration={1.8} />,
+    color: 'text-cyan-400',
+  },
+  {
+    icon: BatteryCharging,
+    label: 'Energy Delivered',
+    renderValue: () => <CountUp to={12.4} decimals={1} suffix=" MWh Today" duration={2.2} />,
+    color: 'text-emerald-300',
+  },
+  {
+    icon: Cpu,
+    label: 'Standard Protocol',
+    renderValue: () => <span>OCPP 2.0.1 Native</span>,
+    color: 'text-cyan-300',
+  },
+  {
+    icon: Zap,
+    label: 'Active Fast Bays',
+    renderValue: () => <CountUp to={12400} separator="," suffix="+ Connectors" duration={2.5} />,
+    color: 'text-emerald-400',
+  },
+  {
+    icon: Activity,
+    label: 'Telemetry Response',
+    renderValue: () => <CountUp to={150} prefix="< " suffix="ms Latency" duration={1.6} />,
+    color: 'text-cyan-400',
+  },
+  {
+    icon: Sparkles,
+    label: 'Smart Protocol',
+    renderValue: () => <span>ISO 15118 Plug & Charge</span>,
+    color: 'text-emerald-300',
+  },
+  {
+    icon: Clock,
+    label: 'Daily Charge Sessions',
+    renderValue: () => <CountUp to={18200} separator="," suffix="+ Runs" duration={2.4} />,
+    color: 'text-cyan-300',
+  },
+  {
+    icon: Radio,
+    label: 'Cloud Diagnostics',
+    renderValue: () => <span>24/7 Auto-Recovery</span>,
+    color: 'text-emerald-400',
+  },
 ]
 
 export function NetworkTicker() {
@@ -43,7 +89,7 @@ export function NetworkTicker() {
               </div>
               <span className="font-medium text-slate-400">{item.label}:</span>
               <span className="font-mono font-semibold text-white group-hover:text-emerald-300">
-                {item.value}
+                {item.renderValue()}
               </span>
             </div>
           )

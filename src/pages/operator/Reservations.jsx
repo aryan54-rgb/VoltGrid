@@ -29,7 +29,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn, formatDate, initials } from '@/lib/utils'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
-import { useAuth } from '@/context/auth'
 import { fetchReservations, setReservationStatus } from '@/lib/api/reservations'
 import { fetchStations } from '@/lib/api/stations'
 import { KioskEngine } from '@/lib/kiosk-broadcast'
@@ -61,28 +60,16 @@ function mockContact(name) {
 }
 
 export default function Reservations() {
-  const { profile } = useAuth()
   const book = useQuery(fetchReservations, [])
   const stationsQuery = useQuery(fetchStations, [])
-  const stations = stationsQuery.data ?? []
+  const stations = useMemo(() => stationsQuery.data ?? [], [stationsQuery.data])
 
-  // Filter stations owned by this operator (admins see all)
   const ownedStationIds = useMemo(() => {
-    if (!stations.length) return null
-    if (profile?.role === 'admin') return null
-    const matching = stations.filter(
-      (s) =>
-        (profile?.id && s.operatorId === profile.id) ||
-        (profile?.company && s.operator?.toLowerCase() === profile.company.toLowerCase()) ||
-        (profile?.name && s.operator?.toLowerCase() === profile.name.toLowerCase()) ||
-        (profile?.email && s.operator?.toLowerCase() === profile.email.toLowerCase())
-    )
-    return new Set(matching.map((s) => s.id))
-  }, [stations, profile])
+    return new Set(stations.map((s) => s.id))
+  }, [stations])
 
   const list = useMemo(() => {
     const raw = book.data ?? []
-    if (!ownedStationIds) return raw
     return raw.filter((r) => ownedStationIds.has(r.stationId))
   }, [book.data, ownedStationIds])
 

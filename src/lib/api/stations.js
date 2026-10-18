@@ -140,9 +140,9 @@ export async function createStation({
   type = 'CCS2',
   powerKw = 150,
 }) {
-  const existing = await supabase.from('stations').select('id').then(unwrap)
-  const nextNumber = existing.length + 1
-  const id = `st-${String(nextNumber).padStart(2, '0')}`
+  // IDs must be unique across operators even though each can only read their
+  // own stations. Counting visible rows would collide with another account.
+  const id = `st-${crypto.randomUUID()}`
 
   const numericPrice = Number(pricePerKwh) > 0 ? Number(pricePerKwh) : 0.4
   const numConnectors = Math.max(1, parseInt(connectorCount, 10) || 1)
@@ -165,22 +165,12 @@ export async function createStation({
     utilization: 0,
   }
 
-  let station
-  try {
-    station = await supabase
-      .from('stations')
-      .insert({ ...baseData, ...(operatorId ? { operator_id: operatorId } : {}) })
-      .select('*')
-      .single()
-      .then(unwrap)
-  } catch {
-    station = await supabase
-      .from('stations')
-      .insert(baseData)
-      .select('*')
-      .single()
-      .then(unwrap)
-  }
+  const station = await supabase
+    .from('stations')
+    .insert({ ...baseData, operator_id: operatorId })
+    .select('*')
+    .single()
+    .then(unwrap)
 
   const bays = Array.from({ length: numConnectors }, (_, i) => ({
     id: `${id}-c1${i + 1}`,

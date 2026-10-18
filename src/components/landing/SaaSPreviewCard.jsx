@@ -19,6 +19,9 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import DecryptedText from '@/components/DecryptedText'
+import ShinyText from '@/components/ShinyText'
+import CountUp from '@/components/CountUp'
 
 const BASE_CHART_DATA = [
   { time: '00:00', power: 65, gridLoad: 42 },
@@ -81,7 +84,14 @@ export function SaaSPreviewCard() {
             </span>
             <div className="ml-3 hidden items-center gap-1.5 rounded-md border border-white/10 bg-[#0E1726] px-3 py-1 font-mono text-[11px] text-slate-300 sm:flex">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              <span>https://console.voltgrid.io/telemetry/live</span>
+              <DecryptedText
+                text="https://console.voltgrid.io/telemetry/live"
+                speed={30}
+                maxIterations={10}
+                animateOn="hover"
+                className="text-slate-300"
+                encryptedClassName="text-emerald-400 font-mono"
+              />
             </div>
           </div>
 
@@ -91,7 +101,7 @@ export function SaaSPreviewCard() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
               </span>
-              <span>OCPP 2.0.1 LIVE</span>
+              <ShinyText text="OCPP 2.0.1 LIVE" color="#34d399" shineColor="#ffffff" speed={2.5} />
               <span className="text-slate-400 font-mono">14ms</span>
             </div>
 
@@ -106,6 +116,7 @@ export function SaaSPreviewCard() {
             </Button>
           </div>
         </div>
+
 
         {/* Dashboard Content */}
         <div className="space-y-6 p-5 sm:p-7">

@@ -27,9 +27,60 @@ async function series(name) {
 const asChart = (name, key) => () => series(name).then((rows) => toChartData(rows, key))
 
 // ---- operator --------------------------------------------------------------
-export const fetchRevenueByDay = asChart('revenue_by_day', 'day')
-export const fetchRevenueByStation = asChart('revenue_by_station', 'station')
-export const fetchSessionsByHour = asChart('sessions_by_hour', 'hour')
+// Session RLS limits operators to stations they own. Aggregate those live rows
+// instead of displaying the shared analytics_series demo snapshots.
+async function operatorSessions() {
+  const rows = []
+  const pageSize = 1000
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await supabase.from('sessions')
+      .select('station_id, started_at, cost, energy_kwh, stations(name)')
+      .order('started_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+      .then(unwrap)
+    rows.push(...page)
+    if (page.length < pageSize) return rows
+  }
+}
+
+export async function fetchRevenueByDay() {
+  const rows = await operatorSessions()
+  const days = new Map()
+  for (const row of rows) {
+    const key = row.started_at?.slice(0, 10)
+    if (!key) continue
+    const day = days.get(key) ?? { day: key, revenue: 0, sessions: 0, energyKwh: 0 }
+    day.revenue += Number(row.cost ?? 0)
+    day.sessions += 1
+    day.energyKwh += Number(row.energy_kwh ?? 0)
+    days.set(key, day)
+  }
+  return [...days.values()].sort((a, b) => a.day.localeCompare(b.day))
+}
+
+export async function fetchRevenueByStation() {
+  const rows = await operatorSessions()
+  const month = new Date().toISOString().slice(0, 7)
+  const stations = new Map()
+  for (const row of rows) {
+    if (!row.started_at?.startsWith(month)) continue
+    const station = stations.get(row.station_id) ?? { station: row.stations?.name ?? row.station_id, revenue: 0 }
+    station.revenue += Number(row.cost ?? 0)
+    stations.set(row.station_id, station)
+  }
+  return [...stations.values()].sort((a, b) => b.revenue - a.revenue)
+}
+
+export async function fetchSessionsByHour() {
+  const rows = await operatorSessions()
+  const today = new Date().toISOString().slice(0, 10)
+  const hours = Array.from({ length: 24 }, (_, hour) => ({ hour: `${String(hour).padStart(2, '0')}:00`, sessions: 0 }))
+  for (const row of rows) {
+    if (row.started_at?.startsWith(today)) hours[Number(row.started_at.slice(11, 13))].sessions += 1
+  }
+  return hours
+}
 
 // ---- admin -----------------------------------------------------------------
 export const fetchPlatformGrowth = asChart('platform_growth', 'month')

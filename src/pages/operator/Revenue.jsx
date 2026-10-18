@@ -11,23 +11,16 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  ArrowUpRight,
   Banknote,
   CircleDollarSign,
-  Clock,
   Download,
-  Landmark,
   Zap,
 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
-import { StatusBadge } from '@/components/shared/status-badge'
 import { CHART_COLORS, ChartCard, ChartTooltip, GRID, axisProps } from '@/components/shared/chart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -35,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { ErrorState, LoadingBlock, LoadingCards } from '@/components/shared/query-state'
 import { useQueries } from '@/hooks/use-query'
 import { fetchRevenueByDay, fetchRevenueByStation } from '@/lib/api/analytics'
@@ -45,31 +38,6 @@ const RANGES = [
   { value: '14', label: 'Last 14 days' },
   { value: '30', label: 'Last 30 days' },
 ]
-
-const nextPayout = { amount: 38420.5, expected: '2026-08-07', bank: '•••• 4471' }
-
-const recentPayouts = [
-  { id: 'PO-2207', date: '2026-07-24', amount: 35180.2 },
-  { id: 'PO-2198', date: '2026-07-10', amount: 33940.75 },
-  { id: 'PO-2186', date: '2026-06-26', amount: 31620.4 },
-]
-
-const TOP_STATION = 'Volta Plaza'
-
-function PayoutRow({ label, sub, amount, children }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{sub}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <span className="text-sm font-semibold tabular-nums">{formatCurrency(amount)}</span>
-        {children}
-      </div>
-    </div>
-  )
-}
 
 export default function Revenue() {
   const [range, setRange] = React.useState('14')
@@ -81,7 +49,15 @@ export default function Revenue() {
   const revenueByDay = charts.data?.byDay ?? []
   const revenueByStation = charts.data?.byStation ?? []
 
-  const topStation = revenueByStation.find((s) => s.station === TOP_STATION) ?? revenueByStation[0]
+  const topStation = revenueByStation[0]
+  const month = new Date().toISOString().slice(0, 7)
+  const monthDays = revenueByDay.filter((day) => day.day.startsWith(month))
+  const monthRevenue = monthDays.reduce((sum, day) => sum + day.revenue, 0)
+  const monthSessions = monthDays.reduce((sum, day) => sum + day.sessions, 0)
+  const monthEnergy = monthDays.reduce((sum, day) => sum + day.energyKwh, 0)
+  const cutoff = new Date()
+  cutoff.setUTCDate(cutoff.getUTCDate() - Number(range) + 1)
+  const visibleDays = revenueByDay.filter((day) => day.day >= cutoff.toISOString().slice(0, 10))
 
   if (charts.loading && !charts.data) {
     return (
@@ -114,7 +90,7 @@ export default function Revenue() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline">
+            <Button variant="outline" disabled title="Export is not configured yet">
               <Download /> Export
             </Button>
           </div>
@@ -125,13 +101,12 @@ export default function Revenue() {
         <StatCard
           index={0}
           label="Revenue month-to-date"
-          value="$142.5k"
-          delta={8.1}
+          value={formatCurrency(monthRevenue)}
           icon={CircleDollarSign}
         />
-        <StatCard index={1} label="Average per session" value="$14.20" icon={Banknote} />
-        <StatCard index={2} label="Energy sold" value="328 MWh" icon={Zap} />
-        <StatCard index={3} label="Idle fees" value="$2.4k" icon={Clock} />
+        <StatCard index={1} label="Average per session" value={formatCurrency(monthSessions ? monthRevenue / monthSessions : 0)} icon={Banknote} />
+        <StatCard index={2} label="Energy sold" value={`${formatNumber(monthEnergy)} kWh`} icon={Zap} />
+        <StatCard index={3} label="Sessions" value={formatNumber(monthSessions)} icon={Zap} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -142,7 +117,7 @@ export default function Revenue() {
           height={280}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={revenueByDay} margin={{ left: 4, right: 8 }}>
+            <BarChart data={visibleDays} margin={{ left: 4, right: 8 }}>
               <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
               <XAxis dataKey="day" {...axisProps} />
               <YAxis {...axisProps} width={44} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
@@ -167,7 +142,7 @@ export default function Revenue() {
           height={280}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={revenueByDay} margin={{ left: 4, right: 8 }}>
+            <LineChart data={visibleDays} margin={{ left: 4, right: 8 }}>
               <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
               <XAxis dataKey="day" {...axisProps} interval={3} />
               <YAxis {...axisProps} width={44} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
@@ -223,40 +198,9 @@ export default function Revenue() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Payouts</CardTitle>
-            <CardDescription>
-              Settled earnings are transferred to your bank account every two weeks.
-            </CardDescription>
+            <CardDescription>Payout details are not connected to a payment provider.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-col gap-3 rounded-lg border border-[var(--status-good)]/30 bg-[var(--status-good)]/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Next payout</span>
-                  <Badge variant="secondary">Scheduled</Badge>
-                </div>
-                <p className="text-2xl font-semibold tabular-nums tracking-tight">
-                  {formatCurrency(nextPayout.amount)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Expected {formatDate(nextPayout.expected)} · bank {nextPayout.bank}
-                </p>
-              </div>
-            </div>
-
-            <Separator />
-
-            {recentPayouts.map((p) => (
-              <PayoutRow
-                key={p.id}
-                label={p.id}
-                sub={`Paid ${formatDate(p.date)} · bank ${nextPayout.bank}`}
-                amount={p.amount}
-              >
-                <StatusBadge status="PAID" />
-              </PayoutRow>
-            ))}
-          </CardContent>
+          <CardContent className="text-sm text-muted-foreground">No payout records are available.</CardContent>
         </Card>
 
         <Card>
@@ -266,23 +210,9 @@ export default function Revenue() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <p className="font-medium">Volta Plaza Charging Station</p>
+              <p className="font-medium">{topStation?.station ?? 'No station earnings yet'}</p>
               <p className="text-3xl font-semibold tabular-nums tracking-tight">
-                {formatCurrency(topStation.revenue)}
-              </p>
-              <p className="flex items-center gap-1 text-sm font-medium text-[var(--delta-good)]">
-                <ArrowUpRight className="h-4 w-4" />
-                +12% month over month
-              </p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Utilisation</span>
-                <span className="font-medium tabular-nums">72%</span>
-              </div>
-              <Progress value={72} />
-              <p className="text-xs text-muted-foreground">
-                Bays are busy roughly three quarters of the day — adding a bay here pays back fastest.
+                {formatCurrency(topStation?.revenue ?? 0)}
               </p>
             </div>
           </CardContent>

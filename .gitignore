@@ -11,6 +11,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+supabase/.temp/
 *.local
 System Verification & Agent Testing Specification.md
 Voltgrid-SUPABASE-DATA-MODELING-QUICK-REFERENCE.md

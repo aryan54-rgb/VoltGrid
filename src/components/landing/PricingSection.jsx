@@ -4,6 +4,10 @@ import { Link } from 'react-router-dom'
 import { Check, Sparkles, Zap, Building2, Truck, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import SpotlightCard from '@/components/SpotlightCard'
+import CountUp from '@/components/CountUp'
+import SplitText from '@/components/SplitText'
+import ShinyText from '@/components/ShinyText'
 
 const TIERS = [
   {
@@ -88,10 +92,16 @@ export function PricingSection() {
             variant="outline"
             className="mb-3 border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"
           >
-            Predictable & Transparent
+            <ShinyText text="Predictable & Transparent" color="#6ee7b7" shineColor="#ffffff" speed={2.5} />
           </Badge>
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
-            Simple Pricing for{' '}
+            <SplitText
+              text="Simple Pricing for"
+              delay={35}
+              duration={0.8}
+              splitType="words"
+              trigger="view"
+            />{' '}
             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
               Every Scale
             </span>
@@ -107,7 +117,7 @@ export function PricingSection() {
             </span>
             <button
               onClick={() => setAnnual(!annual)}
-              className="relative h-7 w-14 rounded-full border border-emerald-500/40 bg-[#0C1526] p-1 transition-colors focus:outline-none"
+              className="relative h-7 w-14 rounded-full border border-emerald-500/40 bg-[#0C1526] p-1 transition-colors focus:outline-none cursor-pointer"
             >
               <motion.div
                 className="h-5 w-5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]"
@@ -124,17 +134,19 @@ export function PricingSection() {
           </div>
         </div>
 
-        {/* Pricing Cards Grid */}
+        {/* Pricing Cards Grid with SpotlightCard */}
         <div className="mt-14 grid gap-8 lg:grid-cols-3 lg:items-stretch">
           {TIERS.map((tier) => {
             const Icon = tier.icon
             const price = annual ? tier.annualPrice : tier.monthlyPrice
 
             return (
-              <motion.div
+              <SpotlightCard
                 key={tier.id}
-                whileHover={{ y: -6 }}
-                transition={{ duration: 0.3 }}
+                spotlightColor={tier.color === 'cyan' ? 'rgba(6, 182, 212, 0.25)' : 'rgba(16, 185, 129, 0.25)'}
+                intensity={0.25}
+                spotlightSize={320}
+                theme="dark"
                 className={`relative flex flex-col justify-between rounded-3xl p-6 sm:p-8 backdrop-blur-2xl transition-all duration-500 ${
                   tier.highlighted
                     ? 'border-2 border-emerald-500/60 bg-[#0B1424]/95 shadow-[0_0_50px_rgba(16,185,129,0.25)] lg:-translate-y-2'
@@ -142,15 +154,15 @@ export function PricingSection() {
                 }`}
               >
                 {tier.highlighted && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
                     <Badge className="border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-0.5 text-xs font-bold text-slate-950 shadow-[0_0_15px_#10b981]">
                       <Sparkles className="mr-1 h-3 w-3" />
-                      MOST POPULAR
+                      <ShinyText text="MOST POPULAR" color="#022c22" shineColor="#ffffff" speed={2} />
                     </Badge>
                   </div>
                 )}
 
-                <div>
+                <div className="relative z-10">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-white">{tier.name}</h3>
@@ -161,10 +173,10 @@ export function PricingSection() {
                     </div>
                   </div>
 
-                  {/* Price display */}
+                  {/* Price display with CountUp */}
                   <div className="mt-6 flex items-baseline gap-1">
                     <span className="font-mono text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-                      {price === 0 ? '$0' : `$${price}`}
+                      {price === 0 ? '$0' : <CountUp to={price} prefix="$" duration={0.6} />}
                     </span>
                     <span className="text-xs text-slate-400 font-medium">/{tier.period}</span>
                   </div>
@@ -183,7 +195,7 @@ export function PricingSection() {
                 </div>
 
                 {/* Card CTA */}
-                <div className="mt-8 border-t border-white/10 pt-6">
+                <div className="relative z-10 mt-8 border-t border-white/10 pt-6">
                   <Button
                     asChild
                     size="lg"
@@ -199,7 +211,7 @@ export function PricingSection() {
                     </Link>
                   </Button>
                 </div>
-              </motion.div>
+              </SpotlightCard>
             )
           })}
         </div>

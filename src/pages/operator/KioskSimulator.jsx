@@ -51,7 +51,7 @@ function formatDuration(totalSeconds) {
 }
 
 export default function KioskSimulator() {
-  const { profile, role: userRole } = useAuth()
+  const { profile } = useAuth()
   const {
     state,
     plugCable,
@@ -68,30 +68,20 @@ export default function KioskSimulator() {
   } = useKioskSimulator()
 
   const stationsQuery = useQuery(fetchStations, [])
-  const allStations = useMemo(() => stationsQuery.data ?? [], [stationsQuery.data])
-
-  // Filter stations strictly to the ones owned by this operator
-  const stations = useMemo(() => {
-    if (userRole === 'admin') return allStations
-    if (userRole === 'operator' && profile) {
-      const owned = allStations.filter((s) => {
-        if (s.operatorId && s.operatorId === profile.id) return true
-        if (profile.company && s.operator && s.operator.toLowerCase().trim() === profile.company.toLowerCase().trim()) return true
-        if (profile.name && s.operator && s.operator.toLowerCase().trim() === profile.name.toLowerCase().trim()) return true
-        if (profile.email && s.operator && s.operator.toLowerCase().trim() === profile.email.toLowerCase().trim()) return true
-        return false
-      })
-      return owned
-    }
-    return allStations
-  }, [allStations, userRole, profile])
+  const stations = useMemo(
+    () => (stationsQuery.data ?? []).filter((station) => station.operatorId === profile?.id),
+    [stationsQuery.data, profile?.id]
+  )
 
   const [connectors, setConnectors] = useState([])
   const [loadingConnectors, setLoadingConnectors] = useState(false)
 
   // Dynamically load real connector bays for the selected station
   useEffect(() => {
-    if (!state.stationId) return
+    if (!stations.some((station) => station.id === state.stationId)) {
+      setConnectors([])
+      return
+    }
     let active = true
     setLoadingConnectors(true)
     fetchConnectorsFor(state.stationId)
@@ -116,7 +106,7 @@ export default function KioskSimulator() {
     return () => {
       active = false
     }
-  }, [state.stationId, state.connectorId, setStationAndConnector])
+  }, [stations, state.stationId, state.connectorId, setStationAndConnector])
 
   // Query reservations for quick-start and approval
   const reservationsQuery = useQuery(fetchReservations, [])
@@ -177,6 +167,23 @@ export default function KioskSimulator() {
     if (logFilter === 'all') return state.logs || []
     return (state.logs || []).filter((l) => l.source.toLowerCase() === logFilter.toLowerCase() || l.level === logFilter)
   }, [state.logs, logFilter])
+
+  if (stationsQuery.loading) {
+    return <p className="text-sm text-muted-foreground">Loading your stations…</p>
+  }
+  if (stationsQuery.error) {
+    return <p className="text-sm text-destructive">Could not load your stations: {stationsQuery.error.message}</p>
+  }
+  if (stations.length === 0) {
+    return <div className="space-y-6">
+      <PageHeader title="Kiosk Terminal Simulator" description="Simulate a charger at a station you operate." />
+      <Card className="p-6">
+        <h2 className="font-semibold">No stations assigned to your operator account</h2>
+        <p className="mt-1 text-sm text-muted-foreground">You are signed in as {profile?.name || profile?.email || 'Station Operator'}. Commission a station to use the simulator.</p>
+        <Button asChild className="mt-4"><Link to="/operator/stations">Commission Station</Link></Button>
+      </Card>
+    </div>
+  }
 
   return (
     <div className="space-y-6">

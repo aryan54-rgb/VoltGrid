@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoltGrid — The Connected EV Charging Platform</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#050807',
+              surface: '#0C1210',
+              card: '#121A16',
+              border: '#24332B',
+              green: '#10B981',
+              emerald: '#059669',
+              mint: '#A7F3D0',
+              accent: '#34D399',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow-pulse': 'glow 3s ease-in-out infinite alternate',
+          },
+          keyframes: {
+            glow: {
+              '0%': { opacity: '0.3', filter: 'blur(20px)' },
+              '100%': { opacity: '0.7', filter: 'blur(30px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #050807;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #24332B;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #10B981;
+    }
+
+    /* Grid Overlay Background */
+    .bg-grid-pattern {
+      background-size: 48px 48px;
+      background-image:
+        linear-gradient(to right, rgba(248, 250, 248, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(248, 250, 248, 0.04) 1px, transparent 1px);
+    }
+
+    /* Linear-style Radial Background Glow */
+    .hero-glow {
+      background: radial-gradient(ellipse at 50% 10%, rgba(6, 78, 54, 0.34) 0%, rgba(5, 54, 38, 0.13) 35%, transparent 76%);
+    }
+
+    .card-glow-hover {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s, box-shadow 0.35s, background 0.35s;
+      transform: translateZ(0);
+    }
+    .card-glow-hover:hover {
+      border-color: rgba(16, 185, 129, 0.4);
+      transform: scale(1.02);
+      box-shadow: 0 24px 65px rgba(0, 0, 0, .38), 0 0 34px rgba(16, 185, 129, 0.12);
+    }
+
+    /* Subtle Glass effect */
+    .glass-panel {
+      background: linear-gradient(145deg, rgba(23, 34, 28, .7), rgba(9, 15, 12, .64));
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, .10);
+    }
+
+    .hero-copy { position: relative; z-index: 10; }
+    .hero-composition {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+      gap: clamp(2rem, 4vw, 5rem);
+      align-items: end;
+    }
+    .hero-title {
+      color: #f8faf8;
+      font-size: clamp(3.7rem, 6.5vw, 7.7rem);
+      font-weight: 500;
+      letter-spacing: -.055em;
+      line-height: 1.01;
+    }
+    .hero-title-line { display: block; white-space: nowrap; }
+    .hero-rotating {
+      display: block;
+      min-height: 1.06em;
+      width: 100%;
+      color: #f8faf8;
+      white-space: nowrap;
+      font-variant-ligatures: none;
+    }
+    .hero-rotating .scramble-char { color: #57d9a4; }
+    .hero-rotating .settled-char { color: #f8faf8; }
+    .hero-side { padding-bottom: .45rem; }
+    .hero-subtext { color: #afc1b7; }
+    .hero-eyebrow {
+      max-width: 100%;
+      background: rgba(255,255,255,.055);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+    }
+    #hero-visual {
+      z-index: 0;
+      background: linear-gradient(150deg, rgba(23,36,29,.8), rgba(6,11,8,.9));
+      border-color: rgba(255,255,255,.12);
+      box-shadow: 0 30px 100px rgba(0,0,0,.72), 0 0 50px rgba(16,185,129,.13), inset 0 1px 0 rgba(255,255,255,.09);
+    }
+    #hero-visual::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: -30px 10%;
+      background: radial-gradient(ellipse at center, rgba(16,185,129,.18), transparent 68%);
+      filter: blur(24px);
+      pointer-events: none;
+    }
+    .telemetry-float {
+      box-shadow: 0 24px 60px rgba(0,0,0,.65), 0 0 24px rgba(16,185,129,.12);
+      border-color: rgba(255,255,255,.13);
+    }
+    #role-display-card { box-shadow: 0 28px 80px rgba(0,0,0,.48), 0 0 45px rgba(16,185,129,.08); }
+    #features .card-glow-hover { border-color: rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.045); }
+    #features .card-glow-hover:hover { border-color: rgba(16,185,129,.4); box-shadow: 0 24px 65px rgba(0,0,0,.38), 0 0 34px rgba(16,185,129,.12); }
+    @media (min-width: 768px) {
+      .hero-composition { margin-bottom: -12px; }
+      #hero-visual { padding-top: 2.5rem; }
+    }
+    @media (max-width: 1023px) {
+      .hero-composition { grid-template-columns: 1fr; gap: 1.5rem; }
+      .hero-title { font-size: clamp(3.7rem, 8vw, 6.4rem); }
+      .hero-side { max-width: 42rem; }
+    }
+    @media (max-width: 639px) {
+      .hero-title { font-size: clamp(3.35rem, 13vw, 4.8rem); letter-spacing: -.05em; }
+      .hero-title-line, .hero-rotating { white-space: normal; }
+      .hero-composition { gap: 1rem; }
+      .hero-eyebrow > span:nth-child(2) { min-width: 0; }
+      .hero-eyebrow > svg { flex: none; }
+      #hero-visual { margin-top: 2rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-glow-hover, .card-glow-hover:hover { transition: none; transform: none; }
+    }
+  </style>
+</head>
+<body class="bg-[#050807] text-slate-100 font-sans antialiased selection:bg-brand-green/30 selection:text-brand-mint overflow-x-hidden bg-grid-pattern">
+
+  <!-- Ambient Light Background Elements -->
+  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[1720px] h-[760px] hero-glow pointer-events-none -z-10"></div>
+  <div class="fixed top-1/3 left-1/4 w-[400px] h-[400px] bg-brand-green/5 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse-slow"></div>
+
+  <!-- NAVIGATION BAR -->
+  <header class="sticky top-0 z-50 w-full border-b border-white/10 bg-[#050807]/80 backdrop-blur-xl transition-all">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+      <!-- Brand Logo -->
+      <a href="#" class="flex items-center gap-3 group">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-brand-green group-hover:border-brand-green group-hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all">
+          <i data-lucide="zap" class="w-4 h-4 fill-current"></i>
+        </div>
+        <span class="font-bold text-lg tracking-tight text-white group-hover:text-brand-mint transition-colors">VoltGrid</span>
+        <span class="px-2 py-0.5 text-[10px] font-mono tracking-wider bg-brand-green/10 text-brand-mint border border-brand-green/20 rounded-full">2.0</span>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+        <a href="#hero-visual" class="hover:text-white transition-colors">How it works</a>
+        <a href="#personas" class="hover:text-white transition-colors">Solutions</a>
+        <a href="#features" class="hover:text-white transition-colors">Modules</a>
+        <a href="#hero-visual" class="hover:text-white transition-colors">Network Health</a>
+      </nav>
+
+      <!-- Right Action CTAs -->
+      <div class="flex items-center gap-4">
+        <button id="open-demo-modal" class="hidden sm:inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-border bg-brand-surface hover:bg-brand-card hover:border-brand-green/30 text-slate-300 transition-all">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          Simulate Booking
+        </button>
+
+        <a href="#hero-visual" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-500 text-slate-950 hover:bg-brand-mint transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] active:scale-95">
+          <span>Get started</span>
+          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO SECTION -->
+  <section class="relative pt-16 pb-16 md:pt-20 md:pb-16 overflow-hidden">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+
+      <!-- Headline & Value Prop -->
+      <div class="hero-composition mb-12">
+      <div class="hero-copy text-left">
+        <div class="hero-eyebrow inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-emerald-200 text-xs font-medium mb-8 backdrop-blur-md">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>VoltGrid 2.0 <span class="text-emerald-200/40 mx-1">•</span> The connected EV infrastructure platform</span>
+          <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+        </div>
+
+        <h1 class="hero-title">
+          <span class="hero-title-line">Every charge</span>
+          <span class="hero-rotating" aria-hidden="true">in <span id="hero-rotating-word">motion.</span></span>
+          <span id="hero-rotating-a11y" class="sr-only">in motion.</span>
+        </h1>
+      </div>
+
+      <div class="hero-side text-left">
+        <p class="hero-subtext text-lg md:text-xl max-w-xl font-normal leading-relaxed mb-8">
+          One unified platform to locate chargers, operate stations, and orchestrate electric fleets. Built with sub-second telemetry for drivers, operators, and grid managers.
+        </p>
+
+        <!-- CTA Action Buttons -->
+        <div class="flex flex-col sm:flex-row lg:flex-col items-start gap-4">
+          <a href="#personas" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-emerald-500 text-slate-950 font-semibold text-sm hover:bg-brand-mint transition-all shadow-[0_0_30px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2">
+            <span>Explore Live Dashboard</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </a>
+
+          <button id="trigger-simulation-btn" class="w-full sm:w-auto px-6 py-3.5 rounded-xl glass-panel text-slate-200 hover:text-white font-medium text-sm hover:border-brand-green/40 transition-all flex items-center justify-center gap-2">
+            <i data-lucide="play-circle" class="w-4 h-4 text-brand-green"></i>
+            <span>Watch Energy Flow</span>
+          </button>
+        </div>
+      </div>
+      </div>
+
+      <!-- HERO VISUAL: Raycast-inspired Energy Telemetry & Interactive Canvas -->
+      <div id="hero-visual" class="relative w-full mx-auto rounded-2xl glass-panel p-2 sm:p-4 border border-white/10">
+
+        <!-- Top Visual Window Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-brand-border/60 bg-[#080E0B]/70 rounded-t-xl mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-rose-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+            <span class="ml-2 text-xs font-mono text-slate-400 hidden sm:inline">VoltGrid // Real-time Telemetry Canvas</span>
+          </div>
+
+          <div class="flex items-center gap-4 text-xs font-mono">
+            <div class="flex items-center gap-2 text-brand-mint">
+              <span class="w-2 h-2 rounded-full bg-brand-green animate-pulse"></span>
+              <span id="canvas-status">STATUS: OPTIMAL (148 kW)</span>
+            </div>
+            <span class="text-slate-500">BAY 04 / DC FAST</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Animated Canvas Layer (Raycast Style Circuit Flow) -->
+        <div class="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] 2xl:h-[520px] bg-[#050B08] rounded-xl overflow-hidden border border-brand-border">
+          <canvas id="telemetryCanvas" class="w-full h-full block" role="img" aria-label="Energy flowing from the grid through a fast charger to an electric fleet bay"></canvas>
+
+          <!-- Floating Interactive HUD Badges (Overlapping Layout) -->
+          <div class="telemetry-float absolute top-4 left-4 p-3 rounded-xl glass-panel text-xs font-mono space-y-1 pointer-events-none hidden sm:block">
+            <div class="text-slate-400">GRID LOAD BALANCE</div>
+            <div class="text-lg font-bold text-white flex items-center gap-2">
+              <span>98.4%</span>
+              <span class="text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-1.5 py-0.5 rounded">+2.1 kW peak</span>
+            </div>
+          </div>
+
+          <div class="telemetry-float absolute bottom-4 right-4 p-3.5 rounded-xl glass-panel text-xs font-mono space-y-2 pointer-events-none">
+            <div class="flex items-center justify-between gap-4">
+              <span class="text-slate-400">SOC BATTERY</span>
+              <span class="text-brand-mint font-bold" id="soc-val">74%</span>
+            </div>
+            <div class="w-36 sm:w-48 h-2 bg-brand-border rounded-full overflow-hidden">
+              <div id="soc-bar" class="h-full bg-gradient-to-r from-emerald-500 to-brand-mint transition-all duration-300" style="width: 74%"></div>
+            </div>
+            <div class="text-[10px] text-slate-400 flex justify-between">
+              <span>EST. TIME LEFT</span>
+              <span class="text-white font-semibold">12 MINS</span>
+            </div>
+          </div>
+
+          <!-- Interactive Control Pill overlay inside Visual -->
+          <div class="absolute bottom-4 left-4 flex items-center gap-2 bg-[#080E0B]/90 backdrop-blur-md p-1.5 rounded-lg border border-brand-border text-xs">
+            <button id="toggle-power-btn" class="px-3 py-1.5 rounded-md bg-emerald-500/20 text-brand-mint hover:bg-emerald-500/30 border border-emerald-500/40 font-mono transition-all">
+              <i data-lucide="zap" class="w-3.5 h-3.5 inline mr-1"></i>Boost Power (180kW)
+            </button>
+            <button id="reset-flow-btn" class="px-2 py-1.5 text-slate-400 hover:text-white transition-colors" title="Reset Simulation">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Bottom Stat Strip -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-2">
+          <div class="p-3 rounded-xl bg-brand-surface/80 border border-brand-border flex items-center gap-3">
+            <div class="p-2 rounded-lg bg-emerald-500/10 text-brand-green">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono">STATION HEALTH</div>
+              <div class="text-sm font-semibold text-white">99.98% Online</div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-brand-surface/80 border border-brand-border flex items-center gap-3">
+            <div class="p-2 rounded-lg bg-emerald-500/10 text-brand-green">
+              <i data-lucide="gauge" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono">DISPATCH TIME</div>
+              <div class="text-sm font-semibold text-white">&lt; 420 ms latency</div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-brand-surface/80 border border-brand-border flex items-center gap-3">
+            <div class="p-2 rounded-lg bg-emerald-500/10 text-brand-green">
+              <i data-lucide="shield-check" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono">ISO 15118 READY</div>
+              <div class="text-sm font-semibold text-white">Plug & Charge</div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-brand-surface/80 border border-brand-border flex items-center gap-3">
+            <div class="p-2 rounded-lg bg-emerald-500/10 text-brand-green">
+              <i data-lucide="activity" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono">ACTIVE BAYS</div>
+              <div class="text-sm font-semibold text-white">1,420 Connected</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SOCIAL PROOF / TRUSTED BY FLEETS -->
+  <section class="py-8 border-y border-brand-border/40 bg-brand-surface/40">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+      <p class="text-center text-xs font-mono tracking-widest text-slate-500 uppercase mb-8">
+        Powering next-generation electric mobility & depot infrastructure
+      </p>
+
+      <div class="flex flex-wrap items-center justify-center md:justify-between gap-8 md:gap-6 opacity-60 grayscale hover:grayscale-0 transition-all">
+        <div class="flex items-center gap-2 font-bold text-slate-300 tracking-wider">
+          <i data-lucide="truck" class="w-5 h-5 text-brand-green"></i> METRO FLEET
+        </div>
+        <div class="flex items-center gap-2 font-bold text-slate-300 tracking-wider">
+          <i data-lucide="zap" class="w-5 h-5 text-brand-green"></i> GRID ENERGY INC
+        </div>
+        <div class="flex items-center gap-2 font-bold text-slate-300 tracking-wider">
+          <i data-lucide="navigation" class="w-5 h-5 text-brand-green"></i> AUTONAV EV
+        </div>
+        <div class="flex items-center gap-2 font-bold text-slate-300 tracking-wider">
+          <i data-lucide="layers" class="w-5 h-5 text-brand-green"></i> CHARGE DEPOT
+        </div>
+        <div class="flex items-center gap-2 font-bold text-slate-300 tracking-wider">
+          <i data-lucide="globe" class="w-5 h-5 text-brand-green"></i> ECO-GRID GLOBAL
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROLE SWITCHER & INTERACTIVE DASHBOARD PREVIEW (VoltGrid Core Personas) -->
+  <section id="personas" class="py-24 relative overflow-hidden">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-green/30 bg-brand-green/10 text-brand-mint text-xs font-mono mb-4">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i>
+          <span>TAILORED WORKSPACES</span>
+        </div>
+        <h2 class="text-3xl sm:text-5xl font-medium text-[#F8FAF8] tracking-tighter">
+          Built for everyone behind every kilowatt.
+        </h2>
+        <p class="mt-4 text-slate-400 text-base">
+          Select a role below to see how VoltGrid simplifies operations across the entire charging ecosystem.
+        </p>
+      </div>
+
+      <!-- Role Tabs (Interactive Buttons) -->
+      <div class="flex justify-center mb-10">
+        <div class="inline-flex p-1.5 rounded-2xl glass-panel border border-brand-border gap-1 overflow-x-auto max-w-full" role="tablist" aria-label="VoltGrid workspaces">
+          <button data-role="driver" role="tab" aria-controls="role-content" aria-selected="true" class="role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-2 bg-emerald-500 text-slate-950 font-semibold shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+            <i data-lucide="car" class="w-4 h-4"></i>
+            <span>Drivers</span>
+          </button>
+
+          <button data-role="operator" role="tab" aria-controls="role-content" aria-selected="false" class="role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+            <i data-lucide="building-2" class="w-4 h-4"></i>
+            <span>Station Operators</span>
+          </button>
+
+          <button data-role="fleet" role="tab" aria-controls="role-content" aria-selected="false" class="role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+            <i data-lucide="truck" class="w-4 h-4"></i>
+            <span>Fleet Managers</span>
+          </button>
+
+          <button data-role="admin" role="tab" aria-controls="role-content" aria-selected="false" class="role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+            <i data-lucide="shield" class="w-4 h-4"></i>
+            <span>Network Admins</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Overlapping Dynamic Card Preview Display -->
+      <div class="relative max-w-[1400px] mx-auto">
+        <div id="role-display-card" class="glass-panel p-6 sm:p-8 rounded-2xl border border-brand-green/30 shadow-[0_0_50px_rgba(16,185,129,0.15)] transition-all duration-300">
+
+          <!-- Dynamic Content Injected Here -->
+          <div id="role-content" role="tabpanel" aria-live="polite">
+            <!-- Default Content: Driver -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+              <div class="md:col-span-5 space-y-4">
+                <div class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-brand-mint text-xs font-mono">DRIVER MOBILE WORKSPACE</div>
+                <h3 class="text-2xl font-bold text-white">Find, Reserve & Charge in Seconds</h3>
+                <p class="text-sm text-slate-400 leading-relaxed">
+                  Real-time station availability, battery pre-conditioning alerts, and frictionless Plug & Charge activation with transparent pricing.
+                </p>
+                <ul class="space-y-2 text-xs font-mono text-slate-300">
+                  <li class="flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Guaranteed Bay Reservations
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Live Battery & SOC Diagnostics
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Automated Payment Settlements
+                  </li>
+                </ul>
+              </div>
+
+              <div class="md:col-span-7 bg-[#050B08] p-5 rounded-xl border border-brand-border space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-brand-border">
+                  <span class="text-xs font-mono text-slate-400">NEARBY CHARGER #408</span>
+                  <span class="text-xs font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">AVAILABLE NOW</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="text-lg font-bold text-white">VoltGrid SuperHub Central</div>
+                    <div class="text-xs text-slate-400">0.8 miles away • 350 kW CCS2 Fast Charger</div>
+                  </div>
+                  <button class="px-4 py-2 bg-emerald-500 text-slate-950 font-semibold text-xs rounded-lg shadow-lg hover:bg-brand-mint transition-all">Reserve Bay 02</button>
+                </div>
+                <div class="p-3 bg-brand-surface rounded-lg border border-brand-border/60 flex items-center justify-between text-xs font-mono">
+                  <span class="text-slate-400">Pre-Conditioning Status:</span>
+                  <span class="text-brand-mint">Battery Primed (28°C)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- BENTO BOX FEATURE GRID (Raycast Inspired Layout) -->
+  <section id="features" class="py-20 relative">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+
+      <div class="text-center max-w-2xl mx-auto mb-16">
+        <h2 class="text-3xl font-medium tracking-tighter text-[#F8FAF8] sm:text-4xl">
+          Engineered for grid-scale performance.
+        </h2>
+        <p class="mt-3 text-slate-400 text-sm">
+          Everything you need to orchestrate electric power delivery in one unified architecture.
+        </p>
+      </div>
+
+      <!-- Grid Bento Container -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Bento Card 1 (Large 2 Col) -->
+        <div class="md:col-span-2 glass-panel p-8 rounded-2xl border border-brand-border card-glow-hover relative overflow-hidden group">
+          <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all"></div>
+
+          <div class="flex items-center gap-3 mb-4">
+            <div class="p-2.5 rounded-xl bg-emerald-500/10 text-brand-green border border-emerald-500/20">
+              <i data-lucide="activity" class="w-5 h-5"></i>
+            </div>
+            <span class="text-xs font-mono text-brand-mint">DYNAMIC LOAD BALANCING</span>
+          </div>
+
+          <h3 class="text-2xl font-bold text-white mb-3">Sub-Second Grid Load Shifting</h3>
+          <p class="text-slate-400 text-sm leading-relaxed mb-6 max-w-lg">
+            Prevent transformer overloads and expensive demand peaks with automated dynamic throttling across active chargers.
+          </p>
+
+          <!-- Interactive Graphic Widget inside Bento Card -->
+          <div class="bg-[#050B08] p-4 rounded-xl border border-brand-border space-y-3 font-mono text-xs">
+            <div class="flex justify-between text-slate-400">
+              <span>DEMAND CAPACITY</span>
+              <span class="text-emerald-400">820 kW / 1000 kW Limit</span>
+            </div>
+            <div class="w-full h-3 bg-brand-surface rounded-full overflow-hidden p-0.5 border border-brand-border">
+              <div class="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 rounded-full" style="width: 82%"></div>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-500">
+              <span>Depot Bay 01: 150 kW</span>
+              <span>Depot Bay 02: 120 kW</span>
+              <span>Depot Bay 03: Throttled</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento Card 2 -->
+        <div class="glass-panel p-8 rounded-2xl border border-brand-border card-glow-hover flex flex-col justify-between">
+          <div>
+            <div class="p-2.5 rounded-xl bg-emerald-500/10 text-brand-green border border-emerald-500/20 w-fit mb-4">
+              <i data-lucide="radio" class="w-5 h-5"></i>
+            </div>
+            <span class="text-xs font-mono text-brand-mint">CONNECTOR HEALTH</span>
+            <h3 class="text-xl font-bold text-white mt-1 mb-2">Automated Fault Diagnostics</h3>
+            <p class="text-slate-400 text-xs leading-relaxed">
+              Detect pilot signal loss, ground faults, and thermal alerts before drivers encounter broken stalls.
+            </p>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-brand-border/60 flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-400">Mean Time to Repair</span>
+            <span class="text-emerald-400 font-bold">-64% Reduction</span>
+          </div>
+        </div>
+
+        <!-- Bento Card 3 -->
+        <div class="glass-panel p-8 rounded-2xl border border-brand-border card-glow-hover flex flex-col justify-between">
+          <div>
+            <div class="p-2.5 rounded-xl bg-emerald-500/10 text-brand-green border border-emerald-500/20 w-fit mb-4">
+              <i data-lucide="calendar" class="w-5 h-5"></i>
+            </div>
+            <span class="text-xs font-mono text-brand-mint">FLEET DEPOT SCHEDULING</span>
+            <h3 class="text-xl font-bold text-white mt-1 mb-2">Route-Aware Charging</h3>
+            <p class="text-slate-400 text-xs leading-relaxed">
+              Prioritize charge schedules based on vehicle shift start times, battery chemistry, and lowest utility tariff windows.
+            </p>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-brand-border/60 flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-400">Overnight Savings</span>
+            <span class="text-emerald-400 font-bold">$1,420 / day</span>
+          </div>
+        </div>
+
+        <!-- Bento Card 4 (2 Col) -->
+        <div class="md:col-span-2 glass-panel p-8 rounded-2xl border border-brand-border card-glow-hover relative overflow-hidden">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="p-2.5 rounded-xl bg-emerald-500/10 text-brand-green border border-emerald-500/20">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+            <span class="text-xs font-mono text-brand-mint">ENTERPRISE COMPLIANCE</span>
+          </div>
+
+          <h3 class="text-2xl font-bold text-white mb-2">OCPP 2.0.1 & OCPI Open Standards</h3>
+          <p class="text-slate-400 text-sm max-w-xl mb-6">
+            Seamlessly roam across public networks and control custom hardware brands without proprietary vendor lock-in.
+          </p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center font-mono text-xs">
+            <div class="p-3 bg-[#050B08] rounded-xl border border-brand-border text-slate-300">OCPP 1.6 / 2.0.1</div>
+            <div class="p-3 bg-[#050B08] rounded-xl border border-brand-border text-slate-300">ISO 15118 PnC</div>
+            <div class="p-3 bg-[#050B08] rounded-xl border border-brand-border text-slate-300">OCPI Roaming</div>
+            <div class="p-3 bg-[#050B08] rounded-xl border border-brand-border text-slate-300">OpenADR 2.0b</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- CTA FOOTER BANNER -->
+  <section class="py-20 relative">
+    <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="glass-panel p-10 sm:p-16 rounded-3xl border border-brand-green/30 text-center relative overflow-hidden shadow-[0_0_80px_rgba(16,185,129,0.15)]">
+
+        <div class="absolute inset-0 bg-gradient-to-b from-brand-green/10 via-transparent to-transparent pointer-events-none"></div>
+
+        <h2 class="text-3xl sm:text-5xl font-medium text-[#F8FAF8] tracking-tighter mb-4">
+          Ready to electrify your grid?
+        </h2>
+        <p class="text-slate-400 text-base max-w-xl mx-auto mb-8">
+          Join leading fleet operators and charging networks scaling with VoltGrid today.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <button id="cta-start-btn" class="w-full sm:w-auto px-8 py-4 rounded-xl bg-emerald-500 text-slate-950 font-bold text-sm hover:bg-brand-mint transition-all shadow-[0_0_30px_rgba(16,185,129,0.4)]">
+            Start Free Prototype Trial
+          </button>
+          <a href="#hero-visual" class="w-full sm:w-auto px-8 py-4 rounded-xl border border-brand-border hover:border-brand-green/40 text-white font-semibold text-sm transition-all">
+            Schedule Technical Demo
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-brand-border/60 bg-[#050B08] py-12 text-xs text-slate-500 font-mono">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div class="flex items-center gap-3">
+        <div class="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center text-brand-green">
+          <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+        </div>
+        <span class="text-white font-bold tracking-wider">VoltGrid Platform</span>
+      </div>
+
+      <div>
+        © 2026 VoltGrid Systems Inc. All rights reserved. Ultra-Sleek Prototype.
+      </div>
+
+      <div class="flex items-center gap-6 text-slate-400">
+        <a href="#" class="hover:text-white transition-colors">Privacy</a>
+        <a href="#" class="hover:text-white transition-colors">Security</a>
+        <a href="#" class="hover:text-white transition-colors">Status</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- SIMULATION BOOKING MODAL -->
+  <div id="demo-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="glass-panel max-w-md w-full p-6 rounded-2xl border border-brand-green/40 shadow-2xl relative space-y-4">
+
+      <div class="flex items-center justify-between border-b border-brand-border pb-3">
+        <div class="flex items-center gap-2 text-white font-bold text-sm">
+          <i data-lucide="zap" class="w-4 h-4 text-brand-green"></i>
+          <span>Simulate Charger Reservation</span>
+        </div>
+        <button id="close-modal" class="text-slate-400 hover:text-white transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 font-mono text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1">SELECT BAY</label>
+          <select id="modal-bay-select" class="w-full bg-[#050B08] border border-brand-border rounded-lg p-2.5 text-white focus:border-brand-green outline-none">
+            <option>Bay 01 - 150kW DC Fast Charger (Available)</option>
+            <option>Bay 02 - 350kW Ultra Fast Charger (Available)</option>
+            <option>Bay 03 - 22kW AC Depot Charger (Occupied)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 mb-1">TARGET SOC BATTERY %</label>
+          <input type="range" min="20" max="100" value="80" class="w-full accent-emerald-500" id="modal-soc-slider">
+          <div class="flex justify-between text-[11px] text-brand-mint mt-1">
+            <span>Current: 24%</span>
+            <span id="target-soc-text">Target: 80%</span>
+          </div>
+        </div>
+
+        <div class="p-3 bg-brand-surface rounded-lg border border-brand-border text-[11px] space-y-1">
+          <div class="flex justify-between"><span class="text-slate-400">Est. Charge Time:</span> <span class="text-white">18 mins</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Total Estimated Power:</span> <span class="text-white">48 kWh</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Estimated Cost:</span> <span class="text-brand-mint font-bold">$14.40</span></div>
+        </div>
+      </div>
+
+      <button id="confirm-booking-btn" class="w-full py-3 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-brand-mint transition-all">
+        Confirm Booking & Initiate Telemetry Flow
+      </button>
+
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC & ANIMATIONS -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Keep the hero line anchored while its final word changes.
+    const heroWord = document.getElementById('hero-rotating-word');
+    const heroA11y = document.getElementById('hero-rotating-a11y');
+    const heroWords = ['motion.', 'sync.', 'control.'];
+    const scrambleChars = 'abcdefghijklmnopqrstuvwxyz';
+    const reduceHeroMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let heroWordIndex = 0;
+
+    function showNextHeroWord() {
+      if (document.hidden) return;
+      heroWordIndex = (heroWordIndex + 1) % heroWords.length;
+      const next = heroWords[heroWordIndex];
+      if (reduceHeroMotion.matches) {
+        heroWord.textContent = next;
+        heroA11y.textContent = 'in ' + next;
+        return;
+      }
+
+      let frame = 0;
+      const totalFrames = 22;
+      const scramble = setInterval(() => {
+        frame += 1;
+        const revealed = Math.max(0, Math.floor(((frame - 6) / (totalFrames - 6)) * next.length));
+        const letters = document.createDocumentFragment();
+        for (let i = 0; i < next.length; i++) {
+          const letter = document.createElement('span');
+          const settled = i < revealed || next[i] === ' ';
+          letter.className = settled ? 'settled-char' : 'scramble-char';
+          letter.textContent = settled ? next[i] : scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+          letters.appendChild(letter);
+        }
+        heroWord.replaceChildren(letters);
+        if (frame >= totalFrames) {
+          clearInterval(scramble);
+          heroWord.textContent = next;
+          heroA11y.textContent = 'in ' + next;
+        }
+      }, 32);
+    }
+    setInterval(showNextHeroWord, 3800);
+
+    // -------------------------------------------------------------
+    // RAYCAST-INSPIRED CANVAS TELEMETRY ANIMATION (Energy Flow Lines)
+    // -------------------------------------------------------------
+    const canvas = document.getElementById('telemetryCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let animationFrameId;
+    let powerRate = 148; // kW
+    let particles = [];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Node definitions for electric flow circuit
+    function getNodes() {
+      const w = canvas.width;
+      const h = canvas.height;
+      return {
+        grid: { x: w * 0.18, y: h * 0.5, label: "GRID POWER", color: "#10B981" },
+        charger: { x: w * 0.5, y: h * 0.5, label: "DC FAST CHARGER", color: "#34D399" },
+        vehicle: { x: w * 0.82, y: h * 0.5, label: "EV FLEET BAY", color: "#A7F3D0" }
+      };
+    }
+
+    // Energy particle class
+    class Particle {
+      constructor(startX, startY, targetX, targetY, speed) {
+        this.x = startX;
+        this.y = startY;
+        this.startX = startX;
+        this.startY = startY;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.progress = Math.random();
+        this.speed = speed;
+        this.size = Math.random() * 2 + 2;
+      }
+
+      update() {
+        this.progress += this.speed * (powerRate / 148);
+        if (this.progress >= 1) {
+          this.progress = 0;
+        }
+        this.x = this.startX + (this.targetX - this.startX) * this.progress;
+        this.y = this.startY + (this.targetY - this.startY) * this.progress;
+      }
+
+      draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = '#A7F3D0';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#10B981';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function initParticles() {
+      particles = [];
+      const nodes = getNodes();
+      // Flow 1: Grid -> Charger
+      for (let i = 0; i < 20; i++) {
+        particles.push(new Particle(nodes.grid.x, nodes.grid.y, nodes.charger.x, nodes.charger.y, 0.005 + Math.random() * 0.005));
+      }
+      // Flow 2: Charger -> Vehicle
+      for (let i = 0; i < 20; i++) {
+        particles.push(new Particle(nodes.charger.x, nodes.charger.y, nodes.vehicle.x, nodes.vehicle.y, 0.006 + Math.random() * 0.006));
+      }
+    }
+
+    initParticles();
+
+    function renderTelemetry() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const nodes = getNodes();
+
+      // Draw connecting circuit lines
+      ctx.beginPath();
+      ctx.moveTo(nodes.grid.x, nodes.grid.y);
+      ctx.lineTo(nodes.charger.x, nodes.charger.y);
+      ctx.lineTo(nodes.vehicle.x, nodes.vehicle.y);
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Draw secondary glowing stroke
+      ctx.beginPath();
+      ctx.moveTo(nodes.grid.x, nodes.grid.y);
+      ctx.lineTo(nodes.charger.x, nodes.charger.y);
+      ctx.lineTo(nodes.vehicle.x, nodes.vehicle.y);
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Update & Draw Flow Particles
+      particles.forEach(p => {
+        p.update();
+        p.draw(ctx);
+      });
+
+      // Draw Node Stations
+      Object.values(nodes).forEach(node => {
+        // Outer glowing pulse ring
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+        ctx.stroke();
+
+        // Inner solid node
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = node.color;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = node.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Label Text
+        ctx.font = '10px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#94A3B8';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, node.x, node.y + 40);
+      });
+
+      animationFrameId = requestAnimationFrame(renderTelemetry);
+    }
+
+    renderTelemetry();
+
+    // Toggle Power Rate Simulation Button
+    const togglePowerBtn = document.getElementById('toggle-power-btn');
+    const canvasStatus = document.getElementById('canvas-status');
+    let isBoosted = false;
+
+    togglePowerBtn.addEventListener('click', () => {
+      isBoosted = !isBoosted;
+      if (isBoosted) {
+        powerRate = 180;
+        canvasStatus.textContent = "STATUS: BOOSTED (180 kW)";
+        canvasStatus.classList.replace('text-brand-mint', 'text-amber-400');
+        togglePowerBtn.innerHTML = `<i data-lucide="zap" class="w-3.5 h-3.5 inline mr-1"></i>Standard Rate (148kW)`;
+        lucide.createIcons();
+      } else {
+        powerRate = 148;
+        canvasStatus.textContent = "STATUS: OPTIMAL (148 kW)";
+        canvasStatus.classList.replace('text-amber-400', 'text-brand-mint');
+        togglePowerBtn.innerHTML = `<i data-lucide="zap" class="w-3.5 h-3.5 inline mr-1"></i>Boost Power (180kW)`;
+        lucide.createIcons();
+      }
+    });
+
+    document.getElementById('reset-flow-btn').addEventListener('click', () => {
+      initParticles();
+    });
+
+    // -------------------------------------------------------------
+    // ROLE SWITCHER TAB LOGIC (Drivers, Operators, Fleets, Admins)
+    // -------------------------------------------------------------
+    const roleTabs = document.querySelectorAll('.role-tab');
+    const roleContentContainer = document.getElementById('role-content');
+
+    const roleData = {
+      driver: `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-fadeIn">
+          <div class="md:col-span-5 space-y-4">
+            <div class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-brand-mint text-xs font-mono">DRIVER MOBILE WORKSPACE</div>
+            <h3 class="text-2xl font-bold text-white">Find, Reserve & Charge in Seconds</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Real-time station availability, battery pre-conditioning alerts, and frictionless Plug & Charge activation with transparent pricing.
+            </p>
+            <ul class="space-y-2 text-xs font-mono text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Guaranteed Bay Reservations</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Live Battery & SOC Diagnostics</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Automated Payment Settlements</li>
+            </ul>
+          </div>
+          <div class="md:col-span-7 bg-[#050B08] p-5 rounded-xl border border-brand-border space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-brand-border">
+              <span class="text-xs font-mono text-slate-400">NEARBY CHARGER #408</span>
+              <span class="text-xs font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">AVAILABLE NOW</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="text-lg font-bold text-white">VoltGrid SuperHub Central</div>
+                <div class="text-xs text-slate-400">0.8 miles away • 350 kW CCS2 Fast Charger</div>
+              </div>
+              <button onclick="document.getElementById('open-demo-modal').click()" class="px-4 py-2 bg-emerald-500 text-slate-950 font-semibold text-xs rounded-lg shadow-lg hover:bg-brand-mint transition-all">Reserve Bay 02</button>
+            </div>
+            <div class="p-3 bg-brand-surface rounded-lg border border-brand-border/60 flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">Pre-Conditioning Status:</span>
+              <span class="text-brand-mint">Battery Primed (28°C)</span>
+            </div>
+          </div>
+        </div>
+      `,
+      operator: `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-fadeIn">
+          <div class="md:col-span-5 space-y-4">
+            <div class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-brand-mint text-xs font-mono">STATION OPERATOR DASHBOARD</div>
+            <h3 class="text-2xl font-bold text-white">Maximize Uptime & Revenue per Bay</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Approve incoming driver bookings, monitor connector hardware health, and adjust dynamic pricing based on localized grid tariff rates.
+            </p>
+            <ul class="space-y-2 text-xs font-mono text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Instant Booking Approvals</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Live Station Revenue Telemetry</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Auto-Fault Cable Isolation</li>
+            </ul>
+          </div>
+          <div class="md:col-span-7 bg-[#050B08] p-5 rounded-xl border border-brand-border space-y-3 font-mono text-xs">
+            <div class="flex justify-between items-center text-slate-400">
+              <span>SITE TOTAL POWER</span>
+              <span class="text-brand-mint font-bold">480 kW Active</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <div class="p-3 bg-brand-surface rounded-lg border border-brand-border">
+                <div class="text-[10px] text-slate-500">BAY 01 (DC FAST)</div>
+                <div class="text-emerald-400 font-bold">150 kW Charging</div>
+                <div class="text-[10px] text-slate-400 mt-1">Rev: $32.40/hr</div>
+              </div>
+              <div class="p-3 bg-brand-surface rounded-lg border border-brand-border">
+                <div class="text-[10px] text-slate-500">BAY 02 (DC FAST)</div>
+                <div class="text-emerald-400 font-bold">180 kW Charging</div>
+                <div class="text-[10px] text-slate-400 mt-1">Rev: $38.90/hr</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      fleet: `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-fadeIn">
+          <div class="md:col-span-5 space-y-4">
+            <div class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-brand-mint text-xs font-mono">DEPOT FLEET ORCHESTRATOR</div>
+            <h3 class="text-2xl font-bold text-white">Route-Ready Battery Readiness</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Schedule overnight depot charging around delivery shifts. Minimize demand charges while guaranteeing 100% vehicle departure readiness.
+            </p>
+            <ul class="space-y-2 text-xs font-mono text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Automated Shift Schedule Sync</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> Off-Peak Tariff Energy Optimization</li>
+            </ul>
+          </div>
+          <div class="md:col-span-7 bg-[#050B08] p-5 rounded-xl border border-brand-border space-y-3 font-mono text-xs">
+            <div class="text-slate-400 border-b border-brand-border pb-2">DEPOT FLEET SCHEDULE (NIGHT SHIFT)</div>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center p-2 bg-brand-surface rounded">
+                <span>Truck #E-102 (500 kWh)</span>
+                <span class="text-brand-mint">Ready in 40m (92% SOC)</span>
+              </div>
+              <div class="flex justify-between items-center p-2 bg-brand-surface rounded">
+                <span>Van #V-404 (120 kWh)</span>
+                <span class="text-emerald-400">Charging (100 kW)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      admin: `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-fadeIn">
+          <div class="md:col-span-5 space-y-4">
+            <div class="inline-block px-2.5 py-1 rounded bg-emerald-500/20 text-brand-mint text-xs font-mono">NETWORK ADMIN CONTROL</div>
+            <h3 class="text-2xl font-bold text-white">Global Estate Supervision</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Complete oversight over thousands of connected endpoints, regional grid node balancing, and custom firmware distribution.
+            </p>
+            <ul class="space-y-2 text-xs font-mono text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> OTA Charger Firmware Pushes</li>
+              <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i> SOC 2 Type II Security Protocols</li>
+            </ul>
+          </div>
+          <div class="md:col-span-7 bg-[#050B08] p-5 rounded-xl border border-brand-border space-y-3 font-mono text-xs">
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="p-3 bg-brand-surface rounded-lg border border-brand-border">
+                <div class="text-slate-500 text-[10px]">TOTAL STATIONS</div>
+                <div class="text-lg font-bold text-white">1,480</div>
+              </div>
+              <div class="p-3 bg-brand-surface rounded-lg border border-brand-border">
+                <div class="text-slate-500 text-[10px]">UPTIME</div>
+                <div class="text-lg font-bold text-brand-mint">99.98%</div>
+              </div>
+              <div class="p-3 bg-brand-surface rounded-lg border border-brand-border">
+                <div class="text-slate-500 text-[10px]">GRID LOAD</div>
+                <div class="text-lg font-bold text-teal-300">14.2 MW</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    };
+
+    roleTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Reset tab styles
+        roleTabs.forEach(t => {
+          t.className = "role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2";
+          t.setAttribute('aria-selected', String(t === tab));
+        });
+
+        // Set active style
+        tab.className = "role-tab px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 bg-emerald-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]";
+
+        // Swap Content
+        const role = tab.getAttribute('data-role');
+        roleContentContainer.innerHTML = roleData[role];
+        lucide.createIcons();
+      });
+    });
+
+    // -------------------------------------------------------------
+    // MODAL SIMULATION DIALOGUE LOGIC
+    // -------------------------------------------------------------
+    const demoModal = document.getElementById('demo-modal');
+    const openModalBtn = document.getElementById('open-demo-modal');
+    const closeModalBtn = document.getElementById('close-modal');
+    const triggerSimBtn = document.getElementById('trigger-simulation-btn');
+    const confirmBookingBtn = document.getElementById('confirm-booking-btn');
+
+    function openModal() {
+      demoModal.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeModal() {
+      demoModal.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    openModalBtn.addEventListener('click', openModal);
+    triggerSimBtn.addEventListener('click', openModal);
+    closeModalBtn.addEventListener('click', closeModal);
+
+    document.getElementById('cta-start-btn').addEventListener('click', openModal);
+
+    confirmBookingBtn.addEventListener('click', () => {
+      closeModal();
+      // Increase telemetry SOC temporarily as simulation response
+      let socVal = document.getElementById('soc-val');
+      let socBar = document.getElementById('soc-bar');
+
+      let curr = 74;
+      let interval = setInterval(() => {
+        if (curr >= 95) {
+          clearInterval(interval);
+        } else {
+          curr += 1;
+          socVal.textContent = curr + "%";
+          socBar.style.width = curr + "%";
+        }
+      }, 100);
+    });
+
+    // Slider label updates
+    document.getElementById('modal-soc-slider').addEventListener('input', (e) => {
+      document.getElementById('target-soc-text').textContent = `Target: ${e.target.value}%`;
+    });
+  </script>
+</body>
+</html>

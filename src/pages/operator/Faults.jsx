@@ -35,6 +35,7 @@ import { cn, formatDateTime, timeAgo } from '@/lib/utils'
 import { ErrorState, LoadingRows } from '@/components/shared/query-state'
 import { useQuery } from '@/hooks/use-query'
 import { assignTicket, escalateTicket, fetchTickets } from '@/lib/api/tickets'
+import { fetchStations } from '@/lib/api/stations'
 import { useKioskTelemetry, FAULT_DEFINITIONS } from '@/lib/kiosk-broadcast'
 
 /**
@@ -63,10 +64,12 @@ const MAINTENANCE_CREW = ['Alex Turner', 'Omar Haddad']
 
 export default function Faults() {
   const queue = useQuery(fetchTickets, [])
+  const stationsQuery = useQuery(fetchStations, [])
   const telemetry = useKioskTelemetry()
   const tickets = useMemo(() => {
     const raw = queue.data ?? []
-    if (telemetry?.kioskState === 'FAULTED' && telemetry.faultState) {
+    if (telemetry?.kioskState === 'FAULTED' && telemetry.faultState &&
+      stationsQuery.data?.some((station) => station.id === telemetry.stationId)) {
       const simId = `TK-LIVE-${telemetry.connectorId}`
       if (!raw.some((t) => t.id === simId)) {
         const faultDef = FAULT_DEFINITIONS[telemetry.faultState] || {
@@ -98,7 +101,7 @@ export default function Faults() {
       }
     }
     return raw
-  }, [queue.data, telemetry])
+  }, [queue.data, telemetry, stationsQuery.data])
 
   const [actionError, setActionError] = useState(null)
   const [query, setQuery] = useState('')
